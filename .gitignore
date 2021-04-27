@@ -1,0 +1,9 @@
+# General
+.directory
+tmp
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea
