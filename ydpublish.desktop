@@ -1,8 +1,11 @@
+# https://github.com/slytomcat/yandex-disk-indicator/blob/master/Yandex.Disk-indicator.desktop
+# https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-1.0.html#basic-format
 [Desktop Entry]
 Type=Service
 ServiceTypes=all/allfiles
 MimeType=all/all;
-Actions=PublishToYandexCom;PublishToYandex;UnpublishFromYandex;AddToStream;MoveToStream;
+Actions=PublishToYandexCom;ClipboardPublishToCom;PublishToYandex;ClipboardPublish;UnpublishFromYandex;UnpublishAllCopy;ClipboardToStream;FileAddToStream;FileMoveToStream;
+Icon=/usr/share/yd-tools/icons/yd-128.png
 X-KDE-Priority=TopLevel
 X-KDE-Icon=/usr/share/yd-tools/icons/yd-128.png
 X-KDE-ServiceTypes=KonqPopupMenu/Plugin
@@ -10,47 +13,55 @@ Name=ydpublish.desktop
 X-KDE-Submenu=YaDisk
 
 [Desktop Action PublishToYandexCom]
-Name=Add international link
+Name=Publish file & copy ya.COM link
 Icon=/usr/share/yd-tools/icons/yd-128.png
-Exec=publishPath=$( yandex-disk publish %F ); echo "https://disk.yandex.com${publishPath#*.sk} | xclip -filter -selection clipboard; mv $YA_DISK_ROOT/yaMedia/$(basename %F) $YA_DISK_ROOT/yaMedia/Media/$(basename %F); kdialog --icon=/usr/share/yd-tools/icons/yd-128.png --title="Yandex.Disk" --passivepopup 'Public link to the %F is copied to the clipboard.' 5
-# Exec=echo "https://disk.yandex.com/d/$(basename `yandex-disk publish %F`)" | xclip -filter -selection clipboard; mv $YA_DISK_ROOT/yaMedia/$(basename %F) $YA_DISK_ROOT/yaMedia/Media/$(basename %F); kdialog --icon=/usr/share/yd-tools/icons/yd-128.png --title="Yandex.Disk" --passivepopup 'Public link to the %F is copied to the clipboard.' 5
+Exec=ydmenu.sh PublishToYandexCom %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log # &>> $YA_DISK_ROOT/yaMedia.error.log
+
+
+[Desktop Action ClipboardPublishToCom]
+Name=Publish clipboard & copy ya.COM link
+Icon=/usr/share/yd-tools/icons/light/yd-ind-error.png
+Exec=ydmenu.sh ClipboardPublishToCom %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log
+
 
 [Desktop Action PublishToYandex]
-Name=Add public link in ru zone
-Name[ru]=Опубликовать
-Name[be]=Апублікаваць праз Яндекс.Дыск
-Name[bg]=Add public link on Yandex.Disk
-Name[el]=Add public link on Yandex.Disk
+Name=Publish file & copy ya.RU link
 Icon=/usr/share/yd-tools/icons/yd-128.png
-Exec=yandex-disk publish %F | xclip -filter -selection clipboard; mv $YA_DISK_ROOT/yaMedia/$(basename %F) $YA_DISK_ROOT/yaMedia/Media/$(basename %F); kdialog --icon=/usr/share/yd-tools/icons/yd-128.png --title="Yandex.Disk" --passivepopup 'Public link to the %F is copied to the clipboard.' 5
-#Exec[ru]=yandex-disk publish %F | xclip -filter -selection clipboard; zenity --info --window-icon=/usr/share/yd-tools/icons/yd-128.png --title="Yandex.Disk"  --ok-label="Закрыть" --text="Ссылка на файл: %F скопирована в буфер обмена." 
-#Exec[be]=yandex-disk publish %F | xclip -filter -selection clipboard; zenity --info --window-icon = /usr/share/yd-tools/icons/yd-128.png --title = "Yandex.Disk" --ok-label = "Зачыніць" --text = "Спасылка на файл:%F скапіравана ў буфер абмену."
-#Exec[bg]=yandex-disk publish %F | xclip -filter -selection clipboard; zenity --info --window-icon = /usr/share/yd-tools/icons/yd-128.png --title = "Yandex.Disk" --ok-label = "Затвори" --text = "Адрес на файла:%F е копиран в клипорда."
-#Exec[el]=yandex-disk publish %F | xclip -filter -selection clipboard; zenity --info --window-icon = /usr/share/yd-tools/icons/yd-128.png --title = "Yandex.Disk" --ok-label = "Κλείσιμο" --text = "Διεύθυνσης URL στο αρχείο:%F έχει αντιγραφεί στο πρόχειρο."
+Exec=ydmenu.sh PublishToYandex %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log
+
+
+[Desktop Action ClipboardPublish]
+Name=Publish clipboard & copy ya.RU link
+Icon=/usr/share/yd-tools/icons/light/yd-ind-error.png
+Exec=ydmenu.sh ClipboardPublish %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log
 
 
 [Desktop Action UnpublishFromYandex]
 Name=Remove public link
-Name[ru]=Убрать из публикации
-Name[be]=Прыбраць з публікацыі праз Яндекс.Дыск
-Name[bg]=Remove public link from Yandex.Disk
-Name[el]=Remove public link from Yandex.Disk
 Icon=/usr/share/yd-tools/icons/yd-128_g.png
-Exec=kdialog --icon=/usr/share/yd-tools/icons/yd-128.png --title="Yandex.Disk" --passivepopup "%F. `yandex-disk unpublish %F`" 5
-# Exec[ru]=zenity --info --window-icon=/usr/share/yd-tools/icons/yd-128_g.png  --title="Yandex.Disk" --ok-label="Закрыть" --text="%c. `yandex-disk unpublish %F`"
-# Exec[be]=zenity --info --window-icon = /usr/share/yd-tools/icons/yd-128_g.png --title = "Yandex.Disk" --ok-label = "Зачыніць" - -text = "%c.` yandex-disk unpublish %F`"
-# Exec[bg]=zenity --info --window-icon = /usr/share/yd-tools/icons/yd-128_g.png --title = "Yandex.Disk" --ok-label = "Затвори" - -text = "%c.` yandex-disk unpublish %F`"
-# Exec[el]=zenity --info --window-icon = /usr/share/yd-tools/icons/yd-128_g.png --title = "Yandex.Disk" --ok-label = "Κλείσιμο" - -text = "%c.` yandex-disk unpublish %F`"
+Exec=ydmenu.sh UnpublishFromYandex %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log
 
 
-[Desktop Action AddToStream]
-Name=Add to file stream
+[Desktop Action UnpublishAllCopy]
+Name=Remove links for all copies
+Icon=/usr/share/yd-tools/icons/yd-128_g.png
+Exec=ydmenu.sh UnpublishAllCopy %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log
+
+
+[Desktop Action ClipboardToStream]
+Name=Save clipboard to stream
+Icon=/usr/share/yd-tools/icons/light/yd-ind-error.png
+Exec=ydmenu.sh ClipboardToStream %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log
+
+
+[Desktop Action FileAddToStream]
+Name=Add file to stream
 Icon=/usr/share/yd-tools/icons/yd-128.png
-Exec=cp -rf %F $YA_DISK_ROOT/yaMedia/Media; kdialog --icon=/usr/share/yd-tools/icons/yd-128.png --title="Yandex.Disk" --passivepopup "%F is copied to the file stream. `yandex-disk sync`" 5;
+Exec=ydmenu.sh FileAddToStream %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log
 
 
-[Desktop Action MoveToStream]
-Name=Move to file stream
+[Desktop Action FileMoveToStream]
+Name=Move file to stream
 Icon=/usr/share/yd-tools/icons/yd-128.png
-Exec=mv %F $YA_DISK_ROOT/yaMedia/Media; kdialog --icon=/usr/share/yd-tools/icons/yd-128.png --title="Yandex.Disk" --passivepopup "%F is moved to the file stream. `yandex-disk sync`" 5;
+Exec=ydmenu.sh FileMoveToStream %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log
 
