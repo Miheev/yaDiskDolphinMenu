@@ -21,6 +21,7 @@ Let's assume some directory under yandex cloud selected as **inbox** for **file 
 - Show published links in notification as **clicable links**
 - Show **both published links**: for COM domain (EN language) RU domain (RU language)
 - Separate menu options for capturing appropriate link (RU, EN) to clipboard (2 links present in notification anyway)
+- Add a **label** to **filename**, if file created from **clipboard** (datetime + cleaned 30 chars from note)
 - Doesn't fail on overwrite: **rename automatically** instead (__%name%\_%number%.%extension% or .%extensionName%\_%number%__)
 - **Unpublish** file with its **copies** (if copies created with patterns above)
 - **Unpublish file outside** of cloud directories (instead of throwing error, unpublish its copy from the inbox directory)
@@ -37,7 +38,7 @@ Set up shared directory access from primary to friendly account for such purpose
 - KDE Linux with Dolphin
 - [yandex-disk](https://yandex.com/support/disk-desktop-linux/) daemon installed and running
 - icons pack from [yd-tools](https://github.com/slytomcat/yandex-disk-indicator/doc/Yandex-disk-indicator) (after installation should be in /usr/share/yd-tools/icons)
-- Mix tools used in script (kdialog, date, xclip, other common tools ..)
+- Mix tools used in script (kdialog, awk, xclip, other common tools ..)
 
 Since current scripts created on top of yandex disk indicator, there is a good chance that it installs and set up some not listed dependencies.
 I'd rather suggest to install it anyway.

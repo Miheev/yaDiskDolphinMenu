@@ -92,9 +92,18 @@ function copyFromClipboard() {
   local currentDate=$(date '+%Y-%m-%d %H:%M:%S');
   local targetType=$(xclip -selection clipboard -t TARGETS -o | grep -m1 ^image);
   local fullPath='note-';
-  
+
   if [ -z $targetType ]; then
-    fullPath="$streamDir/$fullPath$currentDate.txt";
+    # Trim non-file character and form file name from note
+    # File name rules: https://www.cyberciti.biz/faq/linuxunix-rules-for-naming-file-and-directory-names/
+    # single quote: \047,
+    # & not listed for usability, but should be present as described in doc above
+    local nameSummary=$(xclip -selection clipboard -o | head -1 | awk '{gsub(/(https?:)/,"")|([<>|\\\:\/();,"\047])|($\.)}1' | xargs | cut -c1-30 );
+    if [ ! -z "$nameSummary" ]; then
+      nameSummary=" $nameSummary";
+    fi
+
+    fullPath="$streamDir/$fullPath$currentDate$nameSummary.txt";
     xclip -selection clipboard -o > "$fullPath";
   else
     fullPath="$streamDir/$fullPath$currentDate.$(basename $targetType)";
