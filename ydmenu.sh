@@ -98,7 +98,10 @@ function copyFromClipboard() {
     # File name rules: https://www.cyberciti.biz/faq/linuxunix-rules-for-naming-file-and-directory-names/
     # single quote: \047,
     # & not listed for usability, but should be present as described in doc above
-    local nameSummary=$(xclip -selection clipboard -o | head -1 | awk '{gsub(/(https?:)/,"")|([<>|\\\:\/();,"\047])|($\.)}1' | xargs | cut -c1-30 );
+    #
+    # Take name from note example
+    # nameSummary="as||d:< asdas?/*<, >, |, \, :, (, ), &, ;,*\ 'k\&fsldf' 047 7878667"; nameSummary=$( echo "${nameSummary//+([<>|\\:\/()&;,])/''}" | xargs | cut -c1-30 ); echo "=$nameSummary=";
+    local nameSummary=$(xclip -selection clipboard -o | head -1 | awk '{gsub(/([<>|\\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 );
     if [ ! -z "$nameSummary" ]; then
       nameSummary=" $nameSummary";
     fi
@@ -117,15 +120,15 @@ function copyFromClipboard() {
 # $1 String: file path to publish
 # $2 Boolean: copy international link ?
 function publishWithComZone() {
-  local publishPath=$( yandex-disk publish "$1" );  
+  local publishPath=$( yandex-disk publish "$1" );
   local comLink="https://disk.yandex.com${publishPath#*.sk}";
-  
+
   if (( $2 )); then
     echo "$comLink" | xclip -filter -selection clipboard;
   else
     echo "$publishPath" | xclip -filter -selection clipboard;
   fi
-  
+
   showMsg "Public link to the $1 is copied to the clipboard. \n <a href='$comLink'><b>$comLink</b></a> \n <a href='$publishPath'><b>$publishPath</b></a>" 15;
 }
 
@@ -200,7 +203,7 @@ elif [[ $commandType = 'ClipboardPublishToCom' || $commandType = 'ClipboardPubli
   if [ $commandType = 'ClipboardPublish' ]; then
     isComLink=0;
   fi
-  
+
   waitForReady;
   publishWithComZone "$clipDestPath" $isComLink;
 
