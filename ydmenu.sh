@@ -39,7 +39,6 @@ fi
 
 # Is src outside of the root directory in sync?
 isOutsideFile=1
-isBatchError=0
 if [[ "$srcFilePath" = "$yaDisk/"* ]]; then
   isOutsideFile=0
 fi
@@ -48,6 +47,13 @@ timestamp=$(date +%s);
 echo -e "\nStatus: Start $(date '+%Y-%m-%d %H:%M:%S')"
 # kdialog --passivepopup "  " 15;
 
+
+# Rename back if file name has been changed
+function renameBack() {
+  if (( isFileNameChanged )) && [ -f "$srcFilePath" ]; then
+    mv "$srcFilePath" "$F"
+  fi
+}
 
 # Show info message
 # $1 String: message
@@ -79,7 +85,7 @@ function showException() {
       echo "$2"
     fi
 
-    (( isFileNameChanged )) && mv "$yaDiskFilePath" $streamDir
+    renameBack
     echo "Status: Error $(date '+%Y-%m-%d %H:%M:%S')"
     exit 1
 }
@@ -106,7 +112,7 @@ function waitForReady() {
     ((++index))
     sleep 1
   done
-  
+
   if [ "$statusCode" != 'idle' ]; then
     showException "<b>Service is not available</b>. \n Try later or restart it via \n <b><i>yandex-disk stop && yandex-disk start</i></b>." "Service is not available"
 #   else
@@ -153,8 +159,6 @@ function publishWithComZone() {
 
   if [[ "$publishPath" = "unknown publish error"* || "$publishPath" = "unknown error"* || "$publishPath" = "Error:"* ]]; then
     showException "<b>$publishPath</b>" "$publishPath"
-    echo "$publishPath"
-    return ;
   fi
   local comLink="https://disk.yandex.com${publishPath#*.sk}"
 
@@ -189,14 +193,13 @@ function unpublishCopyList() {
     nextFileName="$fileNamePart$indexPart$extPart"
     nextFile="$baseDir/$nextFileName"
 
-    if [[ $isBatchError = 0 && "$res" = "Error:"* ]]; then
-      isBatchError=1;
-    fi
-
 #     waitForReady;
   done
 
   echo "$unpublishRes"
+  if [[ "$unpublishRes" = "unknown error"* || "$unpublishRes" = "Error:"* ]]; then
+    (( isBatchError )) && exit 1;
+  fi
 }
 
 
@@ -237,6 +240,8 @@ if [[ $commandType = 'PublishToYandexCom' || $commandType = 'PublishToYandex' ]]
   (( isOutsideFile )) && mv "$yaDiskFilePath" $streamDir
 elif [[ $commandType = 'ClipboardPublishToCom' || $commandType = 'ClipboardPublish' ]]; then 
   clipDestPath=$(copyFromClipboard)
+  (( $? )) && exit 1
+
   status=$(yandex-disk sync)
   echo "$status - $clipDestPath"
   showMsg "Clipboard flushed to stream: \n <b>$clipDestPath</b> \n $status" 5
@@ -259,7 +264,7 @@ elif [ $commandType = 'UnpublishFromYandex' ]; then
     unpublishRes=$( yandex-disk unpublish "$srcFilePath" )
   fi
 
-  if [[ "$unpublishRes" = "Error:"* ]]; then
+  if [[ "$unpublishRes" = "unknown error"* || "$unpublishRes" = "Error:"* ]]; then
     showException "$unpublishRes for <b>$fileName</b>." "$unpublishRes - $fileName"
   fi
 
@@ -273,25 +278,32 @@ elif [ $commandType = 'UnpublishAllCopy' ]; then
     unpublishRes=$( unpublishCopyList "$filePath" "$srcFilePath" )
   fi
 
-  (( isBatchError )) && showException "Not all files processed successfully. \n Files unpublished: \n $unpublishRes"
-  showMsg "Files unpublished: \n $unpublishRes" 5
+  status=$?
+  timeout=10
+  if (( status )); then
+    showError "<b>Not all files processed successfully</b>";
+    timeout=15
+  fi
+  showMsg "Files unpublished: \n $unpublishRes" $timeout
 
   
 # Copy & move actions without publishing
 elif [ $commandType = 'ClipboardToStream' ]; then
   copyResult=`copyFromClipboard`
+  (( $? )) && exit 1
+
   status=`yandex-disk sync`
   echo "$status - $copyResult"
   showMsg "Clipboard flushed to stream: \n <b>$copyResult</b> \n $status" 10
 elif [ $commandType = 'FileAddToStream' ]; then
   cp -rf "$srcFilePath" $streamDir
-  (( $? )) && showException "Copy error"
+  (( $? )) && showException "Copy error";
   status=`yandex-disk sync`
   echo "$status - $srcFilePath"
   showMsg "<b>$srcFilePath</b> is copied to the file stream. \n $status" 5;
 elif [ $commandType = 'FileMoveToStream' ]; then
   mv -f "$srcFilePath" $streamDir
-  (( $? )) && showException "Move error"
+  (( $? )) && showException "Move error";
   status=`yandex-disk sync`
   echo "$status - $srcFilePath"
   showMsg "<b>$srcFilePath</b> is moved to the file stream. \n $status" 5
@@ -301,10 +313,5 @@ else
   echo "Unknown action: $commandType"
 fi
 
-
-# Rename back if file name has been changed
-if (( isFileNameChanged )) && [ -f "$srcFilePath" ]; then
-  mv "$srcFilePath" "$F"
-fi
-
+renameBack
 echo -e "Status: Done $(date '+%Y-%m-%d %H:%M:%S')"
