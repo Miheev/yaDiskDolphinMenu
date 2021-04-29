@@ -54,6 +54,7 @@ echo -e "\nStatus: Start $(date '+%Y-%m-%d %H:%M:%S')"
 # $2 Number: timeout
 function showMsg(){
   kdialog --icon=$yaIcon --title=$yaTitle --passivepopup "$1 \n Time: $(expr $(date +%s) - $timestamp)" $2
+  echo "$1";
 }
 
 # $1 String: message
