@@ -45,7 +45,7 @@ I'd rather suggest to install it anyway.
 
 
 ### Tested on
-- distributive: KDE Neon 5.21
+- distributive: [KDE Neon](https://neon.kde.org/) 5.21 (Ubuntu + KDE)
 - KDE: 5.21.4
 - Linux core version: 5.4.0-72-generic
 - bash: 5.0.17(1)-release (x86_64-pc-linux-gnu)
