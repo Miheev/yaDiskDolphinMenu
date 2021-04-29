@@ -12,6 +12,7 @@
 YA_DISK_ROOT=$HOME/Public;
 YA_DISK_RELATIVE='yaDisk';
 INBOX_RELATIVE='Media';
+LOG_PATH="$YA_DISK_ROOT/yaMedia.error.log"
 
 cd "$(dirname $0)";
 echo "working directory changed to $PWD"

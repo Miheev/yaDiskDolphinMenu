@@ -12,6 +12,7 @@ c=$4;
 
 # Dialog params
 yaIcon='/usr/share/yd-tools/icons/yd-128.png';
+yaWarnIcon='/usr/share/yd-tools/icons/yd-128_g.png';
 yaErrorIcon='/usr/share/yd-tools/icons/light/yd-ind-error.png';
 yaTitle='Yandex.Disk';
 
@@ -23,6 +24,7 @@ filePath=$(dirname "$F");
 # Dest params
 yaDisk=$YA_DISK_ROOT/yaMedia;
 streamDir=$yaDisk/Media;
+logFilePath=$YA_DISK_ROOT/yaMedia.error.log;
 yaDiskFilePath="$yaDisk/$fileName";
 streamFilePath="$streamDir/$fileName";
 
@@ -42,6 +44,7 @@ if [[ "$srcFilePath" = "$yaDisk/"* ]]; then
 fi
 
 timestamp=$(date +%s);
+echo "Start: $(date '+%Y-%m-%d %H:%M:%S')"
 # kdialog --passivepopup "  " 15;
 
 
@@ -52,10 +55,14 @@ function showMsg(){
   kdialog --icon=$yaIcon --title=$yaTitle --passivepopup "$1 \n Time: $(expr $(date +%s) - $timestamp)" $2;
 }
 
-# Show info message
+# $1 String: message
+function showWarn(){
+  kdialog --icon=$yaWarnIcon --title=$yaTitle --passivepopup "$1" 15;
+}
+
 # $1 String: message
 function showError(){
-  kdialog --icon=$yaErrorIcon --title=$yaTitle --passivepopup "$1 \n Time: $(expr $(date +%s) - $timestamp)" 15;
+  kdialog --icon=$yaErrorIcon --title=$yaTitle --passivepopup "$1 \n See <a href='file://$logFilePath'>log</a> for details \n Time: $(expr $(date +%s) - $timestamp)" 15;
 }
 
 # Wait for the yandex-disk daemon ready for interactions
@@ -63,12 +70,15 @@ function waitForReady() {
   local statusString=$( yandex-disk status | grep -m1 status ); 
   local statusCode="${statusString#*: }";
   local waitCount=30;
-  
+
+  if [ -z "$statusCode" ]; then
+    statusCode='not started';
+  fi
   if [ "$statusCode" = 'idle' ]; then
     return ;
   fi
   
-  showError "<b>Service status: $statusCode</b>. \n Will wait for <b>$(echo $waitCount)s</b> and exit if no luck.";
+  showWarn "<b>Service status: $statusCode</b>. \n Will wait for <b>$(echo $waitCount)s</b> and exit if no luck.";
   
   local index=0;
   while [[ "$statusCode" != 'idle' && $index -lt $waitCount ]]; do    
@@ -79,7 +89,8 @@ function waitForReady() {
   done
   
   if [ "$statusCode" != 'idle' ]; then
-    showError "<b>Service is not available</b>. \n Try later or restart it via \n <b><i>yandex-disk stop && ayndex-disk start</i></b>.";
+    showError "<b>Service is not available</b>. \n Try later or restart it via \n <b><i>yandex-disk stop && yandex-disk start</i></b>.";
+    echo -e "Service is not available\nExit: Error $(date '+%Y-%m-%d %H:%M:%S')\n";
     exit 1;
 #   else
 #     showMsg "Service is ready: $statusCode.";
@@ -124,6 +135,7 @@ function publishWithComZone() {
 
   if [[ "$publishPath" = "unknown publish error"* || "$publishPath" = "unknown error"* || "$publishPath" = "Error:"* ]]; then
     showError "<b>$publishPath</b>";
+    echo "$publishPath";
     return ;
   fi
   local comLink="https://disk.yandex.com${publishPath#*.sk}";
@@ -160,7 +172,7 @@ function unpublishCopyList() {
     nextFile="$baseDir/$nextFileName";
 #     waitForReady;
   done
-  
+
   echo "$unpublishRes";
 }
 
@@ -202,7 +214,9 @@ if [[ $commandType = 'PublishToYandexCom' || $commandType = 'PublishToYandex' ]]
   (( isOutsideFile )) && mv "$yaDiskFilePath" $streamDir;
 elif [[ $commandType = 'ClipboardPublishToCom' || $commandType = 'ClipboardPublish' ]]; then 
   clipDestPath=$(copyFromClipboard);
-  showMsg "Clipboard flushed to stream: \n <b>$clipDestPath</b> \n $(yandex-disk sync)" 5;
+  status=$(yandex-disk sync);
+  echo "$status - $clipDestPath";
+  showMsg "Clipboard flushed to stream: \n <b>$clipDestPath</b> \n $status" 5;
   
   isComLink=1;
   if [ $commandType = 'ClipboardPublish' ]; then
@@ -221,6 +235,7 @@ elif [ $commandType = 'UnpublishFromYandex' ]; then
   else
     unpublishRes=$( yandex-disk unpublish "$srcFilePath" );    
   fi
+  echo "$unpublishRes - $fileName";
   showMsg "$unpublishRes for <b>$fileName</b>." 5
 elif [ $commandType = 'UnpublishAllCopy' ]; then
   unpublishRes='';
@@ -229,21 +244,29 @@ elif [ $commandType = 'UnpublishAllCopy' ]; then
   else
     unpublishRes=$( unpublishCopyList "$filePath" "$srcFilePath" );
   fi
-  showMsg "Files unpublished: \n $unpublishRes" 5
+  showMsg "Files unpublished status: \n $unpublishRes" 5
 
   
 # Copy & move actions without publishing
 elif [ $commandType = 'ClipboardToStream' ]; then
-  showMsg "Clipboard flushed to stream: \n <b>$( copyFromClipboard )</b> \n `yandex-disk sync`" 10;
+  copyResult=`copyFromClipboard`
+  status=`yandex-disk sync`;
+  echo "$status - $copyResult";
+  showMsg "Clipboard flushed to stream: \n <b>$copyResult</b> \n $status" 10;
 elif [ $commandType = 'FileAddToStream' ]; then
-  cp -rf "$srcFilePath" $streamDir; 
-  showMsg "<b>$srcFilePath</b> is copied to the file stream. \n `yandex-disk sync`" 5;
+  cp -rf "$srcFilePath" $streamDir;
+  status=`yandex-disk sync`;
+  echo "$status - $srcFilePath";
+  showMsg "<b>$srcFilePath</b> is copied to the file stream. \n $status" 5;
 elif [ $commandType = 'FileMoveToStream' ]; then
   mv -f "$srcFilePath" $streamDir;
-  showMsg "<b>$srcFilePath</b> is moved to the file stream. \n `yandex-disk sync`" 5;    
+  status=`yandex-disk sync`;
+  echo "$status - $srcFilePath";
+  showMsg "<b>$srcFilePath</b> is moved to the file stream. \n $status" 5;
 else
   workPath="$HOME/.local/share/kservices5/ServiceMenus";
-  showMsg "<b>Unknown action $commandType</b>. \n\n Check <i>$workPath/$c</i> for available actions." 15;
+  showMsg "<b>Unknown action $commandType</b>. \n\n Check <a href='file://$workPath/$c'>$workPath/$c</a> for available actions." 15;
+  echo "Unknown action: $commandType";
 fi
 
 
@@ -251,3 +274,5 @@ fi
 if (( isFileNameChanged )) && [ -f "$srcFilePath" ]; then
   mv "$srcFilePath" "$F";
 fi
+
+echo -e "Done: $(date '+%Y-%m-%d %H:%M:%S')\n";

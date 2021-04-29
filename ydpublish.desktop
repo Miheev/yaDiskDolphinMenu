@@ -15,7 +15,8 @@ X-KDE-Submenu=YaDisk
 [Desktop Action PublishToYandexCom]
 Name=Publish file & copy ya.COM link
 Icon=/usr/share/yd-tools/icons/yd-128.png
-Exec=ydmenu.sh PublishToYandexCom %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log # &>> $YA_DISK_ROOT/yaMedia.error.log
+# &>> $YA_DISK_ROOT/yaMedia.error.log
+Exec=ydmenu.sh PublishToYandexCom %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.error.log
 
 
 [Desktop Action ClipboardPublishToCom]
