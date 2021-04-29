@@ -39,12 +39,13 @@ fi
 
 # Is src outside of the root directory in sync?
 isOutsideFile=1
+isBatchError=0
 if [[ "$srcFilePath" = "$yaDisk/"* ]]; then
   isOutsideFile=0
 fi
 
 timestamp=$(date +%s);
-echo "Start: $(date '+%Y-%m-%d %H:%M:%S')"
+echo -e "\nStatus: Start $(date '+%Y-%m-%d %H:%M:%S')"
 # kdialog --passivepopup "  " 15;
 
 
@@ -63,6 +64,23 @@ function showWarn(){
 # $1 String: message
 function showError(){
   kdialog --icon=$yaErrorIcon --title=$yaTitle --passivepopup "$1 \n See <a href='file://$logFilePath'>log</a> for details \n Time: $(expr $(date +%s) - $timestamp)" 15
+}
+
+# Show error and exit
+# $1 String: message
+# $2 String: additional log message
+function showException() {
+    showError "$1"
+
+    if [ -z "$2" ]; then
+      echo "$1"
+    else
+      echo "$2"
+    fi
+
+    (( isFileNameChanged )) && mv "$yaDiskFilePath" $streamDir
+    echo "Status: Error $(date '+%Y-%m-%d %H:%M:%S')"
+    exit 1
 }
 
 # Wait for the yandex-disk daemon ready for interactions
@@ -89,9 +107,7 @@ function waitForReady() {
   done
   
   if [ "$statusCode" != 'idle' ]; then
-    showError "<b>Service is not available</b>. \n Try later or restart it via \n <b><i>yandex-disk stop && yandex-disk start</i></b>."
-    echo -e "Service is not available\nExit: Error $(date '+%Y-%m-%d %H:%M:%S')\n"
-    exit 1;
+    showException "<b>Service is not available</b>. \n Try later or restart it via \n <b><i>yandex-disk stop && yandex-disk start</i></b>." "Service is not available"
 #   else
 #     showMsg "Service is ready: $statusCode.";
   fi
@@ -119,11 +135,13 @@ function copyFromClipboard() {
 
     fullPath="$streamDir/$fullPath$currentDate$nameSummary.txt"
     xclip -selection clipboard -o > "$fullPath"
+    (( $? )) && showException "Save clipboard error"
   else
     fullPath="$streamDir/$fullPath$currentDate.$(basename $targetType)"
     xclip -selection clipboard -t $targetType -o > "$fullPath"
+    (( $? )) && showException "Save clipboard error"
   fi
-  
+
   echo "$fullPath";
 }
 
@@ -134,7 +152,7 @@ function publishWithComZone() {
   local publishPath=$( yandex-disk publish "$1" )
 
   if [[ "$publishPath" = "unknown publish error"* || "$publishPath" = "unknown error"* || "$publishPath" = "Error:"* ]]; then
-    showError "<b>$publishPath</b>"
+    showException "<b>$publishPath</b>" "$publishPath"
     echo "$publishPath"
     return ;
   fi
@@ -170,6 +188,11 @@ function unpublishCopyList() {
     indexPart="_$index"
     nextFileName="$fileNamePart$indexPart$extPart"
     nextFile="$baseDir/$nextFileName"
+
+    if [[ $isBatchError = 0 && "$res" = "Error:"* ]]; then
+      isBatchError=1;
+    fi
+
 #     waitForReady;
   done
 
@@ -235,6 +258,11 @@ elif [ $commandType = 'UnpublishFromYandex' ]; then
   else
     unpublishRes=$( yandex-disk unpublish "$srcFilePath" )
   fi
+
+  if [[ "$unpublishRes" = "Error:"* ]]; then
+    showException "$unpublishRes for <b>$fileName</b>." "$unpublishRes - $fileName"
+  fi
+
   echo "$unpublishRes - $fileName"
   showMsg "$unpublishRes for <b>$fileName</b>." 5
 elif [ $commandType = 'UnpublishAllCopy' ]; then
@@ -244,7 +272,9 @@ elif [ $commandType = 'UnpublishAllCopy' ]; then
   else
     unpublishRes=$( unpublishCopyList "$filePath" "$srcFilePath" )
   fi
-  showMsg "Files unpublished status: \n $unpublishRes" 5
+
+  (( isBatchError )) && showException "Not all files processed successfully. \n Files unpublished: \n $unpublishRes"
+  showMsg "Files unpublished: \n $unpublishRes" 5
 
   
 # Copy & move actions without publishing
@@ -255,11 +285,13 @@ elif [ $commandType = 'ClipboardToStream' ]; then
   showMsg "Clipboard flushed to stream: \n <b>$copyResult</b> \n $status" 10
 elif [ $commandType = 'FileAddToStream' ]; then
   cp -rf "$srcFilePath" $streamDir
+  (( $? )) && showException "Copy error"
   status=`yandex-disk sync`
   echo "$status - $srcFilePath"
   showMsg "<b>$srcFilePath</b> is copied to the file stream. \n $status" 5;
 elif [ $commandType = 'FileMoveToStream' ]; then
   mv -f "$srcFilePath" $streamDir
+  (( $? )) && showException "Move error"
   status=`yandex-disk sync`
   echo "$status - $srcFilePath"
   showMsg "<b>$srcFilePath</b> is moved to the file stream. \n $status" 5
@@ -275,4 +307,4 @@ if (( isFileNameChanged )) && [ -f "$srcFilePath" ]; then
   mv "$srcFilePath" "$F"
 fi
 
-echo -e "Done: $(date '+%Y-%m-%d %H:%M:%S')\n"
+echo -e "Status: Done $(date '+%Y-%m-%d %H:%M:%S')"

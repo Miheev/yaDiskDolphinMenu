@@ -29,7 +29,7 @@ else
 fi
 
 echo "Set local script-scoped vars"
-output=$( awk -v line="yaDisk=\$YA_DISK_ROOT/$YA_DISK_RELATIVE;" "!x{x=sub(/^yaDisk=.*/,line)}1" ./ydmenu.sh | awk -v line="streamDir=\$yaDisk/$INBOX_RELATIVE;" "!x{x=sub(/^streamDir=.*/,line)}1" | awk -v line="logFilePath=$LOG_PATH;" "!x{x=sub(/^logFilePath=.*/,line)}1" )
+output=$( awk -v line="yaDisk=\$YA_DISK_ROOT/$YA_DISK_RELATIVE" "!x{x=sub(/^yaDisk=.*/,line)}1" ./ydmenu.sh | awk -v line="streamDir=\$yaDisk/$INBOX_RELATIVE" "!x{x=sub(/^streamDir=.*/,line)}1" | awk -v line="logFilePath=$LOG_PATH" "!x{x=sub(/^logFilePath=.*/,line)}1" )
 echo "$output" > ./ydmenu.sh
 output=$( awk -v line="tee -a $LOG_PATH" "{gsub(/tee -a.*/,line)}1" ./ydpublish.desktop )
 echo "$output" > ./ydpublish.desktop
