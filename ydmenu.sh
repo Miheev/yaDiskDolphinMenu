@@ -22,7 +22,7 @@ fileName=$(basename "$F")
 filePath=$(dirname "$F")
 
 # Dest params
-yaDisk=$YA_DISK_ROOT/yaDisk
+yaDisk=$YA_DISK_ROOT/yaMedia
 streamDir=$yaDisk/Media
 logFilePath=$YA_DISK_ROOT/yaMedia.log
 yaDiskFilePath="$yaDisk/$fileName"

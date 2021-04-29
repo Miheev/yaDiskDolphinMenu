@@ -25,7 +25,7 @@ Let's assume some directory under yandex cloud selected as **inbox** for **file 
 - Doesn't fail on overwrite: **rename automatically** instead (__%name%\_%number%.%extension% or .%extensionName%\_%number%__)
 - **Unpublish** file with its **copies** (if copies created with patterns above)
 - **Unpublish file outside** of cloud directories (instead of throwing error, unpublish its copy from the inbox directory)
-- **Log output** to parent of yandex disk root directory (__$YA_DISK_ROOT/yaMedia.error.log__) 
+- **Log output** to parent of yandex disk root directory (__$YA_DISK_ROOT/yaMedia.log__) 
 
 **Cons**
 - EN localization supported only
