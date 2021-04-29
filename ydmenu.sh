@@ -55,12 +55,18 @@ function renameBack() {
   fi
 }
 
-# Show info message
+# Show info message ang log it
 # $1 String: message
 # $2 Number: timeout
 function showMsg(){
   kdialog --icon=$yaIcon --title=$yaTitle --passivepopup "$1 \n Time: $(expr $(date +%s) - $timestamp)" $2
   echo "$1";
+}
+
+# Show info message with long text
+# $1 String: message
+function showLongMsg(){
+  kdialog --icon=$yaIcon --title=$yaTitle --passivepopup "$1 \n Time: $(expr $(date +%s) - $timestamp)" 15
 }
 
 # $1 String: message
@@ -162,13 +168,16 @@ function publishWithComZone() {
   fi
   local comLink="https://disk.yandex.com${publishPath#*.sk}"
 
+  echo "$1"
   if (( $2 )); then
+    echo "$publishPath"
     echo "$comLink" | xclip -filter -selection clipboard
   else
     echo "$publishPath" | xclip -filter -selection clipboard
+    echo "$comLink"
   fi
 
-  showMsg "Public link to the $1 is copied to the clipboard. \n <a href='$comLink'><b>$comLink</b></a> \n <a href='$publishPath'><b>$publishPath</b></a>" 15
+  showLongMsg "Public link to the $1 is copied to the clipboard. \n <a href='$comLink'><b>$comLink</b></a> \n <a href='$publishPath'><b>$publishPath</b></a>"
 }
 
 # Unpublish file and its copies from the stream directory. 
