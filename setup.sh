@@ -7,8 +7,6 @@
 # - YA_DISK_RELATIVE = 'yaDisk', computed path: $HOME/Public/yaDisk
 # - INBOX_RELATIVE = 'Media', computed path: $HOME/Public/yaDisk/Media
 #
-# Prefix relative paths with \ e.g. 'path\/to\/dir'
-#
 YA_DISK_ROOT=$HOME/Public
 YA_DISK_RELATIVE='yaDisk'
 INBOX_RELATIVE='Media'
