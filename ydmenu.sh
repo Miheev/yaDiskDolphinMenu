@@ -135,13 +135,12 @@ function copyFromClipboard() {
 
     fullPath="$streamDir/$fullPath$currentDate$nameSummary.txt"
     xclip -selection clipboard -o > "$fullPath"
-    (( $? )) && showException "Save clipboard error"
   else
     fullPath="$streamDir/$fullPath$currentDate.$(basename $targetType)"
     xclip -selection clipboard -t $targetType -o > "$fullPath"
-    (( $? )) && showException "Save clipboard error"
   fi
 
+  (( $? )) && showException "Save clipboard error"
   echo "$fullPath";
 }
 
