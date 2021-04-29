@@ -121,6 +121,11 @@ function copyFromClipboard() {
 # $2 Boolean: copy international link ?
 function publishWithComZone() {
   local publishPath=$( yandex-disk publish "$1" );
+
+  if [[ "$publishPath" = "unknown publish error"* || "$publishPath" = "unknown error"* || "$publishPath" = "Error:"* ]]; then
+    showError "<b>$publishPath</b>";
+    return ;
+  fi
   local comLink="https://disk.yandex.com${publishPath#*.sk}";
 
   if (( $2 )); then
