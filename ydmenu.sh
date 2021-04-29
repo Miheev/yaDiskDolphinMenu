@@ -4,44 +4,47 @@
 # Spec https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-1.0.html#basic-format
 #
 
-commandType=$1;
+commandType=$1
 # Spec params
-F=$2;
+F=$2
 # k=$3;
-c=$4;
+c=$4
 
 # Dialog params
-yaIcon='/usr/share/yd-tools/icons/yd-128.png';
-yaErrorIcon='/usr/share/yd-tools/icons/light/yd-ind-error.png';
-yaTitle='Yandex.Disk';
+yaIcon='/usr/share/yd-tools/icons/yd-128.png'
+yaWarnIcon='/usr/share/yd-tools/icons/yd-128_g.png'
+yaErrorIcon='/usr/share/yd-tools/icons/light/yd-ind-error.png'
+yaTitle='Yandex.Disk'
 
 # Src params
-srcFilePath=$F;
-fileName=$(basename "$F");
-filePath=$(dirname "$F");
+srcFilePath=$F
+fileName=$(basename "$F")
+filePath=$(dirname "$F")
 
 # Dest params
-yaDisk=$YA_DISK_ROOT/yaMedia;
-streamDir=$yaDisk/Media;
-yaDiskFilePath="$yaDisk/$fileName";
-streamFilePath="$streamDir/$fileName";
+yaDisk=$YA_DISK_ROOT/yaDisk
+streamDir=$yaDisk/Media
+logFilePath=$YA_DISK_ROOT/yaMedia.log
+yaDiskFilePath="$yaDisk/$fileName"
+streamFilePath="$streamDir/$fileName"
 
-extPart='';
-fileNamePart='';
+extPart=''
+fileNamePart=''
 if [ "${fileName::1}" = '.' ]; then
-  fileNamePart="${fileName}";
+  fileNamePart="${fileName}"
 else
-  extPart=".${fileName#*.}";
-  fileNamePart="${fileName%%.*}";    
+  extPart=".${fileName#*.}"
+  fileNamePart="${fileName%%.*}"
 fi
 
 # Is src outside of the root directory in sync?
-isOutsideFile=1;
+isOutsideFile=1
 if [[ "$srcFilePath" = "$yaDisk/"* ]]; then
-  isOutsideFile=0;
+  isOutsideFile=0
 fi
 
 timestamp=$(date +%s);
+echo "Start: $(date '+%Y-%m-%d %H:%M:%S')"
 # kdialog --passivepopup "  " 15;
 
 
@@ -49,37 +52,45 @@ timestamp=$(date +%s);
 # $1 String: message
 # $2 Number: timeout
 function showMsg(){
-  kdialog --icon=$yaIcon --title=$yaTitle --passivepopup "$1 \n Time: $(expr $(date +%s) - $timestamp)" $2;
+  kdialog --icon=$yaIcon --title=$yaTitle --passivepopup "$1 \n Time: $(expr $(date +%s) - $timestamp)" $2
 }
 
-# Show info message
+# $1 String: message
+function showWarn(){
+  kdialog --icon=$yaWarnIcon --title=$yaTitle --passivepopup "$1" 15
+}
+
 # $1 String: message
 function showError(){
-  kdialog --icon=$yaErrorIcon --title=$yaTitle --passivepopup "$1 \n Time: $(expr $(date +%s) - $timestamp)" 15;
+  kdialog --icon=$yaErrorIcon --title=$yaTitle --passivepopup "$1 \n See <a href='file://$logFilePath'>log</a> for details \n Time: $(expr $(date +%s) - $timestamp)" 15
 }
 
 # Wait for the yandex-disk daemon ready for interactions
 function waitForReady() {
-  local statusString=$( yandex-disk status | grep -m1 status ); 
-  local statusCode="${statusString#*: }";
-  local waitCount=30;
-  
+  local statusString=$( yandex-disk status | grep -m1 status )
+  local statusCode="${statusString#*: }"
+  local waitCount=30
+
+  if [ -z "$statusCode" ]; then
+    statusCode='not started'
+  fi
   if [ "$statusCode" = 'idle' ]; then
     return ;
   fi
   
-  showError "<b>Service status: $statusCode</b>. \n Will wait for <b>$(echo $waitCount)s</b> and exit if no luck.";
+  showWarn "<b>Service status: $statusCode</b>. \n Will wait for <b>$(echo $waitCount)s</b> and exit if no luck."
   
-  local index=0;
+  local index=0
   while [[ "$statusCode" != 'idle' && $index -lt $waitCount ]]; do    
-    statusString=$( yandex-disk status | grep -m1 status ); 
-    statusCode="${statusString#*: }";    
-    ((++index));
-    sleep 1;
+    statusString=$( yandex-disk status | grep -m1 status )
+    statusCode="${statusString#*: }"
+    ((++index))
+    sleep 1
   done
   
   if [ "$statusCode" != 'idle' ]; then
-    showError "<b>Service is not available</b>. \n Try later or restart it via \n <b><i>yandex-disk stop && ayndex-disk start</i></b>.";
+    showError "<b>Service is not available</b>. \n Try later or restart it via \n <b><i>yandex-disk stop && yandex-disk start</i></b>."
+    echo -e "Service is not available\nExit: Error $(date '+%Y-%m-%d %H:%M:%S')\n"
     exit 1;
 #   else
 #     showMsg "Service is ready: $statusCode.";
@@ -89,9 +100,9 @@ function waitForReady() {
 
 # Save clipboard content to file
 function copyFromClipboard() {
-  local currentDate=$(date '+%Y-%m-%d %H:%M:%S');
-  local targetType=$(xclip -selection clipboard -t TARGETS -o | grep -m1 ^image);
-  local fullPath='note-';
+  local currentDate=$(date '+%Y-%m-%d %H:%M:%S')
+  local targetType=$(xclip -selection clipboard -t TARGETS -o | grep -m1 ^image)
+  local fullPath='note-'
 
   if [ -z $targetType ]; then
     # Trim non-file character and form file name from note
@@ -101,16 +112,16 @@ function copyFromClipboard() {
     #
     # Take name from note example
     # nameSummary="as||d:< asdas?/*<, >, |, \, :, (, ), &, ;,*\ 'k\&fsldf' 047 7878667"; nameSummary=$( echo "${nameSummary//+([<>|\\:\/()&;,])/''}" | xargs | cut -c1-30 ); echo "=$nameSummary=";
-    local nameSummary=$(xclip -selection clipboard -o | head -1 | awk '{gsub(/([<>|\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 );
+    local nameSummary=$(xclip -selection clipboard -o | head -1 | awk '{gsub(/([<>|\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 )
     if [ ! -z "$nameSummary" ]; then
-      nameSummary=" $nameSummary";
+      nameSummary=" $nameSummary"
     fi
 
-    fullPath="$streamDir/$fullPath$currentDate$nameSummary.txt";
-    xclip -selection clipboard -o > "$fullPath";
+    fullPath="$streamDir/$fullPath$currentDate$nameSummary.txt"
+    xclip -selection clipboard -o > "$fullPath"
   else
-    fullPath="$streamDir/$fullPath$currentDate.$(basename $targetType)";
-    xclip -selection clipboard -t $targetType -o > "$fullPath";    
+    fullPath="$streamDir/$fullPath$currentDate.$(basename $targetType)"
+    xclip -selection clipboard -t $targetType -o > "$fullPath"
   fi
   
   echo "$fullPath";
@@ -120,21 +131,22 @@ function copyFromClipboard() {
 # $1 String: file path to publish
 # $2 Boolean: copy international link ?
 function publishWithComZone() {
-  local publishPath=$( yandex-disk publish "$1" );
+  local publishPath=$( yandex-disk publish "$1" )
 
   if [[ "$publishPath" = "unknown publish error"* || "$publishPath" = "unknown error"* || "$publishPath" = "Error:"* ]]; then
-    showError "<b>$publishPath</b>";
+    showError "<b>$publishPath</b>"
+    echo "$publishPath"
     return ;
   fi
-  local comLink="https://disk.yandex.com${publishPath#*.sk}";
+  local comLink="https://disk.yandex.com${publishPath#*.sk}"
 
   if (( $2 )); then
-    echo "$comLink" | xclip -filter -selection clipboard;
+    echo "$comLink" | xclip -filter -selection clipboard
   else
-    echo "$publishPath" | xclip -filter -selection clipboard;
+    echo "$publishPath" | xclip -filter -selection clipboard
   fi
 
-  showMsg "Public link to the $1 is copied to the clipboard. \n <a href='$comLink'><b>$comLink</b></a> \n <a href='$publishPath'><b>$publishPath</b></a>" 15;
+  showMsg "Public link to the $1 is copied to the clipboard. \n <a href='$comLink'><b>$comLink</b></a> \n <a href='$publishPath'><b>$publishPath</b></a>" 15
 }
 
 # Unpublish file and its copies from the stream directory. 
@@ -142,26 +154,26 @@ function publishWithComZone() {
 # $1 String: directory without fileName where copies are located
 # $2 String: the main file for finding dublicates
 function unpublishCopyList() {
-  local baseDir=$1;
-  local nextFile=$2;
-  local nextFileName=$fileName;
+  local baseDir=$1
+  local nextFile=$2
+  local nextFileName=$fileName
   
-  local index=0;
-  local indexPart='';
-  local unpublishRes='';
-  local $res='';
+  local index=0
+  local indexPart=''
+  local unpublishRes=''
+  local $res=''
   while [ -f "$nextFile" ]; do
-    res=$( yandex-disk unpublish "$nextFile" );
-    unpublishRes+="<b>$nextFileName</b> - $res; \n";
+    res=$( yandex-disk unpublish "$nextFile" )
+    unpublishRes+="<b>$nextFileName</b> - $res; \n"
     
     ((++index));
-    indexPart="_$index";  
-    nextFileName="$fileNamePart$indexPart$extPart";
-    nextFile="$baseDir/$nextFileName";
+    indexPart="_$index"
+    nextFileName="$fileNamePart$indexPart$extPart"
+    nextFile="$baseDir/$nextFileName"
 #     waitForReady;
   done
-  
-  echo "$unpublishRes";
+
+  echo "$unpublishRes"
 }
 
 
@@ -171,20 +183,20 @@ waitForReady
 # Rename file if already exist in the destination and temporal directories
 isFileNameChanged=0;
 if [[ ( -f "$streamFilePath" || -f "$yaDiskFilePath" ) && ( ( $isOutsideFile = 1 && $commandType = "PublishToYandex"* ) || $commandType = "File"* ) ]]; then
-  index=0;
-  indexPart='';
-  srcFilePath='';
+  index=0
+  indexPart=''
+  srcFilePath=''
   while [ -f "$streamFilePath" ] || [ -f "$yaDiskFilePath" ] || [ -f "$srcFilePath" ]; do
-    ((++index));
-    indexPart="_$index";  
-    fileName="$fileNamePart$indexPart$extPart";
-    yaDiskFilePath="$yaDisk/$fileName";
-    streamFilePath="$streamDir/$fileName";
-    srcFilePath="$filePath/$fileName";
+    ((++index))
+    indexPart="_$index"
+    fileName="$fileNamePart$indexPart$extPart"
+    yaDiskFilePath="$yaDisk/$fileName"
+    streamFilePath="$streamDir/$fileName"
+    srcFilePath="$filePath/$fileName"
   done
 
-  mv "$F" "$srcFilePath";
-  isFileNameChanged=1;
+  mv "$F" "$srcFilePath"
+  isFileNameChanged=1
 #   kdialog --passivepopup "$fileName $yaDiskFilePath \n $streamFilePath " 15;
 fi
 # elif [[ "$streamFilePath" != $F && "$yaDiskFilePath" = $F ]]; then
@@ -193,61 +205,74 @@ fi
 
 # Publish actions
 if [[ $commandType = 'PublishToYandexCom' || $commandType = 'PublishToYandex' ]]; then
-  isComLink=1;
+  isComLink=1
   if [ $commandType = 'PublishToYandex' ]; then
-    isComLink=0;
+    isComLink=0
   fi
   
-  publishWithComZone "$srcFilePath" $isComLink;  
-  (( isOutsideFile )) && mv "$yaDiskFilePath" $streamDir;
+  publishWithComZone "$srcFilePath" $isComLink
+  (( isOutsideFile )) && mv "$yaDiskFilePath" $streamDir
 elif [[ $commandType = 'ClipboardPublishToCom' || $commandType = 'ClipboardPublish' ]]; then 
-  clipDestPath=$(copyFromClipboard);
-  showMsg "Clipboard flushed to stream: \n <b>$clipDestPath</b> \n $(yandex-disk sync)" 5;
+  clipDestPath=$(copyFromClipboard)
+  status=$(yandex-disk sync)
+  echo "$status - $clipDestPath"
+  showMsg "Clipboard flushed to stream: \n <b>$clipDestPath</b> \n $status" 5
   
-  isComLink=1;
+  isComLink=1
   if [ $commandType = 'ClipboardPublish' ]; then
-    isComLink=0;
+    isComLink=0
   fi
 
   waitForReady;
-  publishWithComZone "$clipDestPath" $isComLink;
+  publishWithComZone "$clipDestPath" $isComLink
 
 
 # Unpublish actions
 elif [ $commandType = 'UnpublishFromYandex' ]; then
-  unpublishRes='';
+  unpublishRes=''
   if (( isOutsideFile )); then
-    unpublishRes=$( yandex-disk unpublish "$streamFilePath" );    
+    unpublishRes=$( yandex-disk unpublish "$streamFilePath" )
   else
-    unpublishRes=$( yandex-disk unpublish "$srcFilePath" );    
+    unpublishRes=$( yandex-disk unpublish "$srcFilePath" )
   fi
+  echo "$unpublishRes - $fileName"
   showMsg "$unpublishRes for <b>$fileName</b>." 5
 elif [ $commandType = 'UnpublishAllCopy' ]; then
-  unpublishRes='';
+  unpublishRes=''
   if (( isOutsideFile )); then
-    unpublishRes=$( unpublishCopyList "$streamDir" "$streamFilePath" );
+    unpublishRes=$( unpublishCopyList "$streamDir" "$streamFilePath" )
   else
-    unpublishRes=$( unpublishCopyList "$filePath" "$srcFilePath" );
+    unpublishRes=$( unpublishCopyList "$filePath" "$srcFilePath" )
   fi
-  showMsg "Files unpublished: \n $unpublishRes" 5
+  showMsg "Files unpublished status: \n $unpublishRes" 5
 
   
 # Copy & move actions without publishing
 elif [ $commandType = 'ClipboardToStream' ]; then
-  showMsg "Clipboard flushed to stream: \n <b>$( copyFromClipboard )</b> \n `yandex-disk sync`" 10;
+  copyResult=`copyFromClipboard`
+  status=`yandex-disk sync`
+  echo "$status - $copyResult"
+  showMsg "Clipboard flushed to stream: \n <b>$copyResult</b> \n $status" 10
 elif [ $commandType = 'FileAddToStream' ]; then
-  cp -rf "$srcFilePath" $streamDir; 
-  showMsg "<b>$srcFilePath</b> is copied to the file stream. \n `yandex-disk sync`" 5;
+  cp -rf "$srcFilePath" $streamDir
+  status=`yandex-disk sync`
+  echo "$status - $srcFilePath"
+  showMsg "<b>$srcFilePath</b> is copied to the file stream. \n $status" 5;
 elif [ $commandType = 'FileMoveToStream' ]; then
-  mv -f "$srcFilePath" $streamDir;
-  showMsg "<b>$srcFilePath</b> is moved to the file stream. \n `yandex-disk sync`" 5;    
+  mv -f "$srcFilePath" $streamDir
+  status=`yandex-disk sync`
+  echo "$status - $srcFilePath"
+  showMsg "<b>$srcFilePath</b> is moved to the file stream. \n $status" 5
 else
-  workPath="$HOME/.local/share/kservices5/ServiceMenus";
-  showMsg "<b>Unknown action $commandType</b>. \n\n Check <i>$workPath/$c</i> for available actions." 15;
+  workPath="$HOME/.local/share/kservices5/ServiceMenus"
+  showMsg "<b>Unknown action $commandType</b>. \n\n Check <a href='file://$workPath/$c'>$workPath/$c</a> for available actions." 15
+  echo "Unknown action: $commandType"
 fi
 
 
 # Rename back if file name has been changed
 if (( isFileNameChanged )) && [ -f "$srcFilePath" ]; then
-  mv "$srcFilePath" "$F";
+  mv "$srcFilePath" "$F"
 fi
+
+echo -e "Done: $(date '+%Y-%m-%d %H:%M:%S')\n"
