@@ -101,7 +101,7 @@ function copyFromClipboard() {
     #
     # Take name from note example
     # nameSummary="as||d:< asdas?/*<, >, |, \, :, (, ), &, ;,*\ 'k\&fsldf' 047 7878667"; nameSummary=$( echo "${nameSummary//+([<>|\\:\/()&;,])/''}" | xargs | cut -c1-30 ); echo "=$nameSummary=";
-    local nameSummary=$(xclip -selection clipboard -o | head -1 | awk '{gsub(/([<>|\\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 );
+    local nameSummary=$(xclip -selection clipboard -o | head -1 | awk '{gsub(/([<>|\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 );
     if [ ! -z "$nameSummary" ]; then
       nameSummary=" $nameSummary";
     fi
