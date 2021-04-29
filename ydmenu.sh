@@ -178,7 +178,7 @@ function unpublishCopyList() {
   local index=0
   local indexPart=''
   local unpublishRes=''
-  local $res=''
+  local res=''
   while [ -f "$nextFile" ]; do
     res=$( yandex-disk unpublish "$nextFile" )
     unpublishRes+="<b>$nextFileName</b> - $res; \n"
