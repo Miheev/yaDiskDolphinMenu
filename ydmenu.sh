@@ -96,6 +96,11 @@ function showException() {
     exit 1
 }
 
+# Mock for tests
+#function yandex-disk() {
+#  echo "status: idle"
+#}
+
 # Wait for the yandex-disk daemon ready for interactions
 function waitForReady() {
   local statusString=$( yandex-disk status | grep -m1 status )
