@@ -48,6 +48,11 @@ echo -e "\nStatus: Start $(date '+%Y-%m-%d %H:%M:%S')"
 # kdialog --passivepopup "  " 15;
 
 
+# Mock for tests
+#function yandex-disk() {
+#  echo "status: idle"
+#}
+
 # Rename back if file name has been changed
 function renameBack() {
   if (( isFileNameChanged )) && [ -f "$srcFilePath" ]; then
@@ -96,11 +101,6 @@ function showException() {
     exit 1
 }
 
-# Mock for tests
-#function yandex-disk() {
-#  echo "status: idle"
-#}
-
 # Wait for the yandex-disk daemon ready for interactions
 function waitForReady() {
   local statusString=$( yandex-disk status | grep -m1 status )
@@ -146,7 +146,11 @@ function copyFromClipboard() {
     #
     # Take name from note example
     # nameSummary="as||d:< asdas?/*<, >, |, \, :, (, ), &, ;,*\ 'k\&fsldf' 047 7878667"; nameSummary=$( echo "${nameSummary//+([<>|\\:\/()&;,])/''}" | xargs | cut -c1-30 ); echo "=$nameSummary=";
-    local nameSummary=$(xclip -selection clipboard -o | head -1 | awk '{gsub(/([<>|\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 )
+    #
+    # Linux bug: multi-byte handling to upstream coreutils, 2006 year
+    # https://lists.gnu.org/archive/html/bug-coreutils/2006-07/msg00044.html
+    # https://stackoverflow.com/questions/18700455/string-trimming-using-linux-cut-respecting-utf8-bondaries
+    local nameSummary=$(xclip -selection clipboard -o | head -1 | awk '{gsub(/([<>|\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 | iconv -c)
     if [ ! -z "$nameSummary" ]; then
       nameSummary=" $nameSummary"
     fi
