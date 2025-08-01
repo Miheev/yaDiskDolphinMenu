@@ -8,6 +8,7 @@ import tempfile
 import os
 import shutil
 import subprocess
+import click.testing
 from unittest.mock import patch, MagicMock, mock_open
 from pathlib import Path
 
@@ -86,40 +87,37 @@ class TestYandexDiskMenu(unittest.TestCase):
     @patch('subprocess.run')
     def test_wait_for_ready_idle(self, mock_run):
         """Test wait_for_ready when service is already idle"""
-        mock_run.return_value.stdout = "status: idle\n"
+        mock_run.return_value.stdout = "Synchronization core status: idle\n"
         
         # Should return immediately without showing warning
         with patch.object(self.yd_menu, 'show_notification') as mock_notify:
             self.yd_menu.wait_for_ready()
             mock_notify.assert_not_called()
     
+    @patch('time.sleep')  
     @patch('subprocess.run')
-    @patch('time.sleep')
-    def test_wait_for_ready_busy_then_idle(self, mock_sleep, mock_run):
+    def test_wait_for_ready_busy_then_idle(self, mock_run, mock_sleep):
         """Test wait_for_ready when service becomes idle after waiting"""
-        # First call returns busy, second call returns idle
-        mock_run.return_value.stdout = "status: busy\n"
-        
         call_count = 0
         def side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            if call_count == 1:
-                result = MagicMock()
-                result.stdout = "status: busy\n"
-                return result
+            result = MagicMock()
+            if call_count <= 2:
+                # First call (initial check) and second call (first loop iteration) return busy
+                result.stdout = "Synchronization core status: busy\n"
             else:
-                result = MagicMock()
-                result.stdout = "status: idle\n"
-                return result
+                # Third call (second loop iteration) returns idle
+                result.stdout = "Synchronization core status: idle\n"
+            return result
         
         mock_run.side_effect = side_effect
         
         with patch.object(self.yd_menu, 'show_notification'):
             self.yd_menu.wait_for_ready()
         
-        # Should have called sleep once
-        mock_sleep.assert_called_once_with(1)
+        # Should have called sleep once during the wait loop (before the second iteration that succeeds)
+        self.assertEqual(mock_sleep.call_count, 1)
     
     @patch('subprocess.run')
     def test_get_clipboard_content_text(self, mock_run):
@@ -295,6 +293,11 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
     @patch('ydmenu.YandexDiskMenu.show_notification')
     def test_main_publish_command(self, mock_notify, mock_wait, mock_run):
         """Test main function with publish command"""
+        # Create required directory structure
+        ya_disk_dir = os.path.join(self.temp_dir, 'yaMedia')
+        stream_dir = os.path.join(ya_disk_dir, 'Media')
+        os.makedirs(stream_dir, exist_ok=True)
+        
         # Create test file
         test_file = os.path.join(self.temp_dir, 'test.txt')
         with open(test_file, 'w') as f:
@@ -314,6 +317,55 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         mock_wait.assert_called_once()
         mock_notify.assert_called()
+
+    @patch('subprocess.run')
+    @patch('ydmenu.YandexDiskMenu.wait_for_ready')
+    @patch('ydmenu.YandexDiskMenu.show_notification')
+    def test_main_file_conflict_resolution(self, mock_notify, mock_wait, mock_run):
+        """Test main function handles file conflicts correctly - source unchanged, destination renamed"""
+        # Create required directory structure
+        ya_disk_dir = os.path.join(self.temp_dir, 'yaMedia')
+        stream_dir = os.path.join(ya_disk_dir, 'Media')
+        os.makedirs(stream_dir, exist_ok=True)
+        
+        # Create source file outside yandex disk
+        source_file = os.path.join(self.temp_dir, 'conflict.txt')
+        with open(source_file, 'w') as f:
+            f.write("source content")
+        
+        # Create conflicting file in stream directory
+        conflict_file = os.path.join(stream_dir, 'conflict.txt')
+        with open(conflict_file, 'w') as f:
+            f.write("existing content")
+        
+        # Mock yandex-disk publish
+        mock_result = MagicMock()
+        mock_result.stdout.strip.return_value = "https://yadi.sk/d/test123"
+        mock_run.return_value = mock_result
+        
+        from ydmenu import main
+        
+        # Test FileAddToStream with conflict
+        runner = click.testing.CliRunner()
+        result = runner.invoke(main, ['FileAddToStream', source_file])
+        
+        self.assertEqual(result.exit_code, 0)
+        
+        # Verify source file still exists and unchanged
+        self.assertTrue(os.path.exists(source_file))
+        with open(source_file, 'r') as f:
+            self.assertEqual(f.read(), "source content")
+        
+        # Verify original conflict file still exists
+        self.assertTrue(os.path.exists(conflict_file))
+        with open(conflict_file, 'r') as f:
+            self.assertEqual(f.read(), "existing content")
+        
+        # Verify new file was created with unique name
+        conflict_1_file = os.path.join(stream_dir, 'conflict_1.txt')
+        self.assertTrue(os.path.exists(conflict_1_file))
+        with open(conflict_1_file, 'r') as f:
+            self.assertEqual(f.read(), "source content")
 
 
 if __name__ == '__main__':

@@ -95,17 +95,16 @@ class YandexDiskMenu:
         try:
             result = subprocess.run(['yandex-disk', 'status'], 
                                   capture_output=True, text=True, timeout=10)
+            # Look for "Synchronization core status: idle" format
             status_line = next((line for line in result.stdout.split('\n') 
-                              if line.strip().startswith('status')), '')
-            status_code = status_line.split(':', 1)[1].strip() if ':' in status_line else 'not started'
+                              if 'status:' in line.lower()), '')
+            status_code = status_line.split(':', -1)[-1].strip() if ':' in status_line else 'not started'
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
             status_code = 'not started'
         
         if status_code == 'idle':
             return
         
-        self.show_notification(f"status_line", 15, 'info')
-            
         self.show_notification(f"<b>Service status: {status_code}</b>.\nWill wait for <b>30s</b> and exit if no luck.", 
                              15, 'warn')
         
@@ -114,9 +113,10 @@ class YandexDiskMenu:
             try:
                 result = subprocess.run(['yandex-disk', 'status'], 
                                       capture_output=True, text=True, timeout=5)
+                # Look for "Synchronization core status: idle" format
                 status_line = next((line for line in result.stdout.split('\n') 
-                                  if line.strip().startswith('status')), '')
-                status_code = status_line.split(':', 1)[1].strip() if ':' in status_line else 'not started'
+                                  if 'status:' in line.lower()), '')
+                status_code = status_line.split(':', -1)[-1].strip() if ':' in status_line else 'not started'
                 
                 if status_code == 'idle':
                     return
@@ -308,18 +308,16 @@ def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str
     
     yd_menu.wait_for_ready()
     
-    # Handle file renaming for conflicts
+    # Generate unique destination filename for conflicts (don't rename source)
+    dest_filename = file_name
     if file_path and os.path.exists(file_path):
         if ((os.path.exists(f"{yd_menu.stream_dir}/{file_name}") or 
              os.path.exists(f"{yd_menu.ya_disk}/{file_name}")) and
-            (is_outside_file and command_type.startswith('PublishToYandex')) or 
-            command_type.startswith('File')):
+            ((is_outside_file and command_type.startswith('PublishToYandex')) or 
+             command_type.startswith('File'))):
             
-            new_filename = yd_menu.generate_unique_filename(file_dir, file_name)
-            new_src_path = f"{file_dir}/{new_filename}"
-            shutil.move(src_file_path, new_src_path)
-            src_file_path = new_src_path
-            file_name = new_filename
+            # Generate unique filename for destination, keep source unchanged
+            dest_filename = yd_menu.generate_unique_filename(yd_menu.stream_dir, file_name)
     
     # Handle different command types
     try:
@@ -328,7 +326,8 @@ def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str
             yd_menu.publish_file(src_file_path, use_com)
             
             if is_outside_file:
-                shutil.move(src_file_path, yd_menu.stream_dir)
+                dest_path = f"{yd_menu.stream_dir}/{dest_filename}"
+                shutil.move(src_file_path, dest_path)
                 
         elif command_type in ['ClipboardPublishToCom', 'ClipboardPublish']:
             clip_dest_path = yd_menu.get_clipboard_content()
@@ -370,14 +369,16 @@ def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str
             yd_menu.show_notification(f"Clipboard flushed to stream:\n<b>{clip_dest_path}</b>\n{sync_status}", 10)
             
         elif command_type == 'FileAddToStream':
-            shutil.copy2(src_file_path, yd_menu.stream_dir)
+            dest_path = f"{yd_menu.stream_dir}/{dest_filename}"
+            shutil.copy2(src_file_path, dest_path)
             sync_status = yd_menu.sync_yandex_disk()
-            yd_menu.show_notification(f"<b>{src_file_path}</b> is copied to the file stream.\n{sync_status}", 5)
+            yd_menu.show_notification(f"<b>{os.path.basename(src_file_path)}</b> is copied to the file stream as <b>{dest_filename}</b>.\n{sync_status}", 5)
             
         elif command_type == 'FileMoveToStream':
-            shutil.move(src_file_path, yd_menu.stream_dir)
+            dest_path = f"{yd_menu.stream_dir}/{dest_filename}"
+            shutil.move(src_file_path, dest_path)
             sync_status = yd_menu.sync_yandex_disk()
-            yd_menu.show_notification(f"<b>{src_file_path}</b> is moved to the file stream.\n{sync_status}", 5)
+            yd_menu.show_notification(f"<b>{os.path.basename(src_file_path)}</b> is moved to the file stream as <b>{dest_filename}</b>.\n{sync_status}", 5)
             
         else:
             work_path = f"{os.path.expanduser('~')}/.local/share/kservices5/ServiceMenus"
