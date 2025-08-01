@@ -23,11 +23,32 @@ This is a **Yandex Disk integration for KDE Dolphin** that adds a context menu f
 2. Run `./setup.sh` to set global environment variables and create symlinks
 3. The script modifies `/etc/environment` and creates symlinks for `ydpublish.desktop`
 
-### Python Version Setup (v0.5)
+### Python Version Setup (v1.0-RC-1)
+
+#### Quick Setup (Recommended)
+```bash
+# Install dependencies and configure Python version
+make install          # Create venv and install dependencies  
+make configure        # Configure system integration (requires sudo)
+```
+
+#### Manual Setup Steps
 1. Run `./setup.py` to set global environment variables and create Python-specific symlinks
 2. The script creates virtual environment, installs dependencies, and symlinks `ydpublish-python.desktop`
 3. Uses separate desktop file and log file to avoid conflicts with bash version
 4. Desktop entries use direct execution (no `tee` logging) since Python handles its own logging
+
+#### Alternative Setup Options
+```bash
+# Shell version only
+./setup.sh
+
+# Python version only  
+make install && python setup.py
+
+# Both versions (recommended for development)
+./setup.sh && make install && python setup.py --skip-env
+```
 
 ## Dependencies & Requirements
 
@@ -35,7 +56,7 @@ This is a **Yandex Disk integration for KDE Dolphin** that adds a context menu f
 - `yandex-disk` daemon installed and running
 - `yd-tools` icon pack (icons in `/usr/share/yd-tools/icons/`)
 - Standard Linux utilities: `kdialog`, `awk`, `xclip`, `grep`, `cut`, `iconv`
-- **Python version dependencies**: `click>=8.0.0`, `pyperclip>=1.8.0` (automatically managed via virtual environment)
+- **Python version dependencies**: `click>=8.0.0`, `pyclip>=0.7.0` (automatically managed via virtual environment)
 - **Testing dependencies**: Uses Python's built-in `unittest` framework (no additional test dependencies required)
 
 ## Core Functionality
@@ -53,7 +74,7 @@ The main script (`ydmenu.sh` for bash, `ydmenu.py` for Python) handles:
 ### Python Version Enhancements (v0.5)
 - **Advanced logging**: Quiet logging by default, configurable with `--verbose` flag, structured logging to separate file and console
 - **Subprocess logging**: All subprocess calls (yandex-disk, xclip) always log stderr; stdout only logged in verbose mode
-- **Improved clipboard**: Primary clipboard access via `pyperclip` with `xclip` fallback for images and edge cases
+- **Improved clipboard**: Native cross-platform clipboard access via `pyclip` with `xclip` fallback for edge cases
 - **Better error handling**: Comprehensive logging of command failures with return codes and output
 - **Robust conflict resolution**: Rollback rename algorithm prevents yandex-disk publish failures
 - **Separate log files**: Uses `yaMedia-python.log` to avoid conflicts with bash version logs
@@ -81,7 +102,34 @@ Python operations are logged to `$YA_DISK_ROOT/yaMedia-python.log`.
 
 ## Usage Examples
 
-### Python Version (v0.5)
+### Installation and Setup
+
+#### Quick Installation with Make
+```bash
+# Clone the repository
+git clone <repository-url>
+cd yaDiskDolphinMenu
+
+# Install Python version (recommended)
+make install          # Install dependencies in virtual environment
+make configure        # Configure system integration (requires sudo)
+make status          # Check installation status
+```
+
+#### Make Commands Reference
+```bash
+make help            # Show all available commands
+make install         # Install Python dependencies  
+make configure       # Configure Python version (requires sudo)
+make test           # Run unit tests
+make lint           # Run code linting
+make format         # Format code with black
+make clean          # Clean up generated files
+make status         # Show installation status
+make uninstall      # Remove symlinks (keeps files)
+```
+
+### Python Version (v1.0-RC-1)
 
 #### Command Line Usage
 ```bash
@@ -122,7 +170,7 @@ tail -f $YA_DISK_ROOT/yaMedia-python.log
 # Log always includes:
 # - Command execution details
 # - Subprocess stderr (errors always visible)
-# - Clipboard operations (pyperclip vs xclip fallback)
+# - Clipboard operations (pyclip vs xclip fallback)
 # - File conflict resolution
 # - Error details with return codes
 
@@ -133,12 +181,26 @@ tail -f $YA_DISK_ROOT/yaMedia-python.log
 
 #### Clipboard Integration
 The Python version provides improved clipboard handling:
-- **Primary**: Uses `pyperclip` for cross-platform text clipboard access
-- **Fallback**: Uses `xclip` for image clipboard and when pyperclip fails
+- **Primary**: Uses `pyclip` for cross-platform text and binary clipboard access
+- **Fallback**: Uses `xclip` when pyclip is unavailable or fails
 - **Auto-detection**: Automatically detects clipboard content type (text vs image)
 - **Smart naming**: Creates meaningful filenames based on clipboard text content
 
 #### Development and Testing
+
+Using Make (Recommended):
+```bash
+# Setup development environment
+make install         # Create venv and install dependencies
+make test           # Run unit tests  
+make test-coverage  # Run tests with coverage report
+make lint           # Run code linting (flake8, pylint)
+make format         # Format code with black
+make clean          # Clean up generated files
+make status         # Check installation status
+```
+
+Manual Development Setup:
 ```bash
 # Use the same virtual environment created by setup.py for both production and testing
 ./setup.py               # Creates venv and installs dependencies
@@ -150,7 +212,7 @@ python test_ydmenu.py
 # Or run tests with pytest if available
 python -m pytest test_ydmenu.py -v
 
-# The venv contains all production dependencies (click, pyperclip) needed for both runtime and testing
+# The venv contains all production dependencies (click, pyclip) needed for both runtime and testing
 ```
 
 #### Rollback Rename Algorithm
@@ -181,3 +243,50 @@ The Python version implements a sophisticated conflict resolution algorithm to p
 - Preserves source files for copy operations
 - Automatic conflict resolution with numbered suffixes
 - Robust error handling with guaranteed rollback
+
+### Troubleshooting
+
+#### Installation Issues
+```bash
+# Check current installation status
+make status
+
+# Clean and reinstall if needed
+make clean
+make install
+make configure
+
+# Check system dependencies
+make check-deps
+
+# Check if yandex-disk is running
+yandex-disk status
+```
+
+#### Common Issues and Solutions
+```bash
+# Permission denied during configure
+sudo make configure
+
+# Missing dependencies
+make install
+
+# Tests failing
+make clean && make test
+
+# Remove installation completely
+make uninstall
+make clean
+```
+
+#### Monitoring and Debugging  
+```bash
+# Monitor operations in real-time
+tail -f $YA_DISK_ROOT/yaMedia-python.log
+
+# Run with verbose logging
+ydmenu.py --verbose <command> <args>
+
+# Check system status
+make status
+```

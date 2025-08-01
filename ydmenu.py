@@ -17,7 +17,82 @@ import tempfile
 import logging
 
 import click
-import pyperclip
+
+try:
+    import pyclip
+    PYCLIP_AVAILABLE = True
+except ImportError:
+    PYCLIP_AVAILABLE = False
+
+
+class ClipboardHandler:
+    """Simplified clipboard handler using pyclip as primary with xclip fallback"""
+    
+    def __init__(self, logger):
+        self.logger = logger
+    
+    def get_text(self) -> Optional[str]:
+        """Get text from clipboard using pyclip as primary"""
+        if PYCLIP_AVAILABLE:
+            try:
+                content = pyclip.paste(text=True)
+                # Handle both string and bytes return types
+                if content:
+                    if isinstance(content, bytes):
+                        content = content.decode('utf-8', errors='ignore')
+                    self.logger.debug("Retrieved text content from clipboard using pyclip")
+                    return content
+            except Exception as e:
+                self.logger.warning(f"pyclip failed: {e}")
+        
+        # pyclip not available or failed - return None for xclip fallback
+        return None
+    
+    def set_text(self, text: str) -> bool:
+        """Set text to clipboard using pyclip as primary"""
+        if PYCLIP_AVAILABLE:
+            try:
+                pyclip.copy(text)
+                self.logger.debug(f"Copied to clipboard using pyclip: {text}")
+                return True
+            except Exception as e:
+                self.logger.warning(f"pyclip failed: {e}")
+        
+        # pyclip not available or failed - return False for xclip fallback
+        return False
+    
+    def has_image(self) -> bool:
+        """Check if clipboard contains image data using pyclip"""
+        if PYCLIP_AVAILABLE:
+            try:
+                # Try to get binary data from clipboard
+                data = pyclip.paste()
+                if data and isinstance(data, bytes):
+                    # Check if it looks like image data (simple heuristic)
+                    if (data.startswith(b'\x89PNG') or 
+                        data.startswith(b'\xff\xd8\xff') or 
+                        data.startswith(b'BM') or
+                        data.startswith(b'GIF87a') or
+                        data.startswith(b'GIF89a')):
+                        self.logger.debug("Clipboard contains image data (detected via pyclip)")
+                        return True
+                return False
+            except Exception as e:
+                self.logger.debug(f"pyclip image check failed: {e}")
+        
+        return False
+    
+    def get_image_data(self) -> Optional[bytes]:
+        """Get image data from clipboard using pyclip"""
+        if PYCLIP_AVAILABLE:
+            try:
+                data = pyclip.paste()
+                if data and isinstance(data, bytes):
+                    self.logger.debug("Retrieved image data from clipboard using pyclip")
+                    return data
+            except Exception as e:
+                self.logger.debug(f"pyclip image retrieval failed: {e}")
+        return None
 
 
 class YandexDiskMenu:
@@ -32,6 +107,12 @@ class YandexDiskMenu:
     }
     TITLE = 'Yandex.Disk'
     WAIT_TIMEOUT = 30
+    
+    # Timeout constants
+    TIMEOUT_SHORT = 5
+    TIMEOUT_MEDIUM = 10
+    TIMEOUT_LONG = 30
+    TIMEOUT_SYNC = 60
     
     def __init__(self, verbose: bool = False):
         # Get environment variables
@@ -73,6 +154,9 @@ class YandexDiskMenu:
         
         # Prevent propagation to root logger
         self.logger.propagate = False
+        
+        # Initialize clipboard handler
+        self.clipboard = ClipboardHandler(self.logger)
     
     def __del__(self):
         """Cleanup logger handlers to prevent resource warnings"""
@@ -97,7 +181,7 @@ class YandexDiskMenu:
             subprocess.run([
                 'kdialog', '--icon', icon, '--title', self.TITLE,
                 '--passivepopup', full_message, str(timeout)
-            ], check=False, timeout=10)
+            ], check=False, timeout=self.TIMEOUT_MEDIUM)
         except (FileNotFoundError, subprocess.TimeoutExpired):
             # Fallback to logging if kdialog not available or times out
             self.logger.warning(f"NOTIFICATION: {full_message}")
@@ -113,8 +197,9 @@ class YandexDiskMenu:
         self.show_notification(notification_msg, 15, 'error')
         sys.exit(1)
     
-    def _run_command(self, cmd: List[str], timeout: int = 30, check: bool = True, input: str = None) -> subprocess.CompletedProcess:
+    def _run_command(self, cmd: List[str], timeout: int = None, check: bool = True, input: str = None) -> subprocess.CompletedProcess:
         """Helper method to run subprocess commands with consistent error handling and logging"""
+        timeout = timeout or self.TIMEOUT_LONG
         self.logger.debug(f"Running command: {' '.join(cmd)}")
         
         try:
@@ -143,40 +228,36 @@ class YandexDiskMenu:
                 self.logger.error(f"Command stderr: {e.stderr.strip()}")
             raise
     
+    def _parse_yandex_status(self, stdout: str) -> str:
+        """Parse yandex-disk status output to extract status code"""
+        status_line = next((line for line in stdout.split('\n') 
+                          if 'status:' in line.lower()), '')
+        return status_line.split(':', -1)[-1].strip() if ':' in status_line else 'not started'
+    
+    def _get_yandex_status(self, timeout: int = None) -> str:
+        """Get current yandex-disk status"""
+        timeout = timeout or self.TIMEOUT_MEDIUM
+        try:
+            result = self._run_command(['yandex-disk', 'status'], timeout=timeout, check=False)
+            return self._parse_yandex_status(result.stdout)
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
+            self.logger.warning("Failed to get yandex-disk status")
+            return 'not started'
+    
     def wait_for_ready(self) -> None:
         """Wait for yandex-disk daemon to be ready"""
-        try:
-            result = self._run_command(['yandex-disk', 'status'], timeout=10, check=False)
-            # Look for "Synchronization core status: idle" format
-            status_line = next((line for line in result.stdout.split('\n') 
-                              if 'status:' in line.lower()), '')
-            status_code = status_line.split(':', -1)[-1].strip() if ':' in status_line else 'not started'
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
-            status_code = 'not started'
-            self.logger.warning("Failed to get yandex-disk status")
-        
+        status_code = self._get_yandex_status()
         if status_code == 'idle':
             return
         
         self.show_notification(f"<b>Service status: {status_code}</b>.\nWill wait for <b>30s</b> and exit if no luck.", 
                              15, 'warn')
         
-        wait_count = 30
-        for i in range(wait_count):
-            try:
-                result = self._run_command(['yandex-disk', 'status'], timeout=5, check=False)
-                # Look for "Synchronization core status: idle" format
-                status_line = next((line for line in result.stdout.split('\n') 
-                                  if 'status:' in line.lower()), '')
-                status_code = status_line.split(':', -1)[-1].strip() if ':' in status_line else 'not started'
-                
-                if status_code == 'idle':
-                    self.logger.debug(f"Yandex-disk ready after {i+1} seconds")
-                    return
-                    
-            except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-                self.logger.debug(f"Status check attempt {i+1} failed")
-                
+        for i in range(self.WAIT_TIMEOUT):
+            status_code = self._get_yandex_status(timeout=self.TIMEOUT_SHORT)
+            if status_code == 'idle':
+                self.logger.debug(f"Yandex-disk ready after {i+1} seconds")
+                return
             time.sleep(1)
             
         self.show_error_and_exit(
@@ -184,65 +265,97 @@ class YandexDiskMenu:
             "Service is not available"
         )
     
+    def _get_clipboard_image_type(self) -> Optional[str]:
+        """Check if clipboard contains image using native Python libraries with xclip fallback"""
+        # Try pyclip first
+        if self.clipboard.has_image():
+            return "image/png"  # Default to PNG for pyclip
+        
+        # Fall back to xclip for detailed image type detection
+        try:
+            result = self._run_command(['xclip', '-selection', 'clipboard', '-t', 'TARGETS', '-o'], 
+                                     timeout=self.TIMEOUT_SHORT, check=False)
+            return next((line.strip() for line in result.stdout.split('\n') 
+                        if line.strip().startswith('image')), None)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.logger.debug("xclip not available or no image in clipboard")
+            return None
+    
+    def _save_clipboard_image(self, target_type: str, current_date: str) -> str:
+        """Save clipboard image to file using native Python libraries with xclip fallback"""
+        extension = target_type.split('/')[-1] if '/' in target_type else 'png'
+        full_path = f"{self.stream_dir}/note-{current_date}.{extension}"
+        
+        # Try pyclip first
+        image_data = self.clipboard.get_image_data()
+        if image_data:
+            try:
+                with open(full_path, 'wb') as f:
+                    f.write(image_data)
+                self.logger.info(f"Saved clipboard image to: {full_path}")
+                return full_path
+            except IOError as e:
+                self.logger.warning(f"Failed to save image data from pyclip: {e}")
+        
+        # Fall back to xclip
+        try:
+            with open(full_path, 'wb') as f:
+                subprocess.run(['xclip', '-selection', 'clipboard', '-t', target_type, '-o'],
+                              stdout=f, check=True)
+            
+            self.logger.info(f"Saved clipboard image to: {full_path} (using xclip fallback)")
+            return full_path
+        except (subprocess.CalledProcessError, FileNotFoundError, IOError) as e:
+            self.show_error_and_exit(f"Failed to save clipboard image: {e}")
+            return ""
+    
+    def _get_clipboard_text(self) -> str:
+        """Get text content from clipboard using native Python libraries with xclip fallback"""
+        # Try pyclip first
+        content = self.clipboard.get_text()
+        if content:
+            return content
+        
+        # Fall back to xclip
+        try:
+            result = self._run_command(['xclip', '-selection', 'clipboard', '-o'], timeout=self.TIMEOUT_SHORT)
+            self.logger.debug("Retrieved text content from clipboard using xclip fallback")
+            return result.stdout
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.show_error_and_exit("Cannot access clipboard - all methods failed")
+            return ""
+    
+    def _create_filename_from_text(self, content: str, current_date: str) -> str:
+        """Create sanitized filename from text content"""
+        name_summary = ''
+        if content.strip():
+            first_line = content.split('\n')[0][:30]
+            # Remove problematic characters
+            name_summary = re.sub(r'[<>|\\;/(),"\']|(https?:)|(:)|( {2})|( \.)+$', '', first_line).strip()
+            if name_summary:
+                name_summary = f" {name_summary}"
+        
+        return f"{self.stream_dir}/note-{current_date}{name_summary}.txt"
+    
     def get_clipboard_content(self) -> Optional[str]:
-        """Get clipboard content using pyperclip and xclip fallback for images"""
+        """Get clipboard content using pyclip with xclip fallback"""
         try:
             current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            # Check if clipboard contains image using xclip (pyperclip doesn't support images)
-            try:
-                result = self._run_command(['xclip', '-selection', 'clipboard', '-t', 'TARGETS', '-o'], 
-                                         timeout=5, check=False)
-                target_type = next((line.strip() for line in result.stdout.split('\n') 
-                                  if line.strip().startswith('image')), None)
-                
-                if target_type:
-                    # Image content - still use xclip for binary data
-                    self.logger.debug(f"Clipboard contains image: {target_type}")
-                    extension = target_type.split('/')[-1] if '/' in target_type else 'png'
-                    full_path = f"{self.stream_dir}/note-{current_date}.{extension}"
-                    
-                    with open(full_path, 'wb') as f:
-                        # For binary data, we need to use subprocess directly
-                        subprocess.run(['xclip', '-selection', 'clipboard', '-t', target_type, '-o'],
-                                      stdout=f, check=True)
-                    
-                    self.logger.info(f"Saved clipboard image to: {full_path}")
-                    return full_path
-                    
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                self.logger.debug("xclip not available or no image in clipboard, trying text")
+            # Check for image content first
+            target_type = self._get_clipboard_image_type()
+            if target_type:
+                self.logger.debug(f"Clipboard contains image: {target_type}")
+                return self._save_clipboard_image(target_type, current_date)
             
-            # Text content using pyperclip
-            try:
-                content = pyperclip.paste()
-                self.logger.debug("Retrieved text content from clipboard using pyperclip")
-            except Exception as e:
-                self.logger.warning(f"pyperclip failed, falling back to xclip: {e}")
-                # Fallback to xclip for text
-                try:
-                    result = self._run_command(['xclip', '-selection', 'clipboard', '-o'], timeout=5)
-                    content = result.stdout
-                    self.logger.debug("Retrieved text content from clipboard using xclip")
-                except (subprocess.CalledProcessError, FileNotFoundError):
-                    self.show_error_and_exit("Cannot access clipboard - both pyperclip and xclip failed")
-                    return None
-            
+            # Get text content
+            content = self._get_clipboard_text()
             if not content or not content.strip():
                 self.logger.warning("Clipboard is empty or contains only whitespace")
                 return None
             
-            # Create filename from first line, sanitized
-            name_summary = ''
-            if content.strip():
-                first_line = content.split('\n')[0][:30]
-                # Remove problematic characters
-                name_summary = re.sub(r'[<>|\\;/(),"\']|(https?:)|(:)|( {2})|( \.)+$', '', first_line).strip()
-                if name_summary:
-                    name_summary = f" {name_summary}"
-            
-            full_path = f"{self.stream_dir}/note-{current_date}{name_summary}.txt"
-            
+            # Save text to file
+            full_path = self._create_filename_from_text(content, current_date)
             with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             
@@ -252,38 +365,45 @@ class YandexDiskMenu:
         except (IOError, OSError) as e:
             self.show_error_and_exit(f"Save clipboard error: {e}")
     
+    def _copy_to_clipboard(self, text: str) -> None:
+        """Copy text to clipboard using native Python libraries with xclip fallback"""
+        # Try pyclip first
+        if self.clipboard.set_text(text):
+            return
+        
+        # Fall back to xclip
+        try:
+            self._run_command(['xclip', '-selection', 'clipboard'], 
+                            timeout=self.TIMEOUT_SHORT, check=True, input=text)
+            self.logger.debug(f"Copied to clipboard using xclip fallback: {text}")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.show_error_and_exit("Cannot copy to clipboard - all methods failed")
+    
+    def _create_com_link(self, publish_path: str) -> str:
+        """Convert .ru link to .com domain"""
+        return f"https://disk.yandex.com{publish_path.split('.sk', 1)[-1]}" if '.sk' in publish_path else publish_path
+    
+    def _validate_publish_result(self, publish_path: str) -> None:
+        """Validate yandex-disk publish result for errors"""
+        error_indicators = ['unknown publish error', 'unknown error', 'error:']
+        if any(error in publish_path.lower() for error in error_indicators):
+            self.show_error_and_exit(f"<b>{publish_path}</b>", publish_path)
+    
     def publish_file(self, file_path: str, use_com_domain: bool = True) -> None:
         """Publish file and copy link to clipboard"""
         try:
-            result = self._run_command(['yandex-disk', 'publish', file_path], timeout=30)
+            result = self._run_command(['yandex-disk', 'publish', file_path], timeout=self.TIMEOUT_LONG)
             publish_path = result.stdout.strip()
             
-            if any(error in publish_path.lower() for error in ['unknown publish error', 'unknown error', 'error:']):
-                self.show_error_and_exit(f"<b>{publish_path}</b>", publish_path)
-            
-            # Create .com version of link
-            com_link = f"https://disk.yandex.com{publish_path.split('.sk', 1)[-1]}" if '.sk' in publish_path else publish_path
+            self._validate_publish_result(publish_path)
+            com_link = self._create_com_link(publish_path)
             
             print(file_path)
             if use_com_domain:
                 print(publish_path)
-                # Copy .com link to clipboard
-                try:
-                    pyperclip.copy(com_link)
-                    self.logger.debug(f"Copied .com link to clipboard using pyperclip: {com_link}")
-                except Exception as e:
-                    self.logger.warning(f"pyperclip failed, falling back to xclip: {e}")
-                    self._run_command(['xclip', '-selection', 'clipboard'], 
-                                    timeout=5, check=True, input=com_link)
+                self._copy_to_clipboard(com_link)
             else:
-                # Copy .ru link to clipboard
-                try:
-                    pyperclip.copy(publish_path)
-                    self.logger.debug(f"Copied .ru link to clipboard using pyperclip: {publish_path}")
-                except Exception as e:
-                    self.logger.warning(f"pyperclip failed, falling back to xclip: {e}")
-                    self._run_command(['xclip', '-selection', 'clipboard'], 
-                                    timeout=5, check=True, input=publish_path)
+                self._copy_to_clipboard(publish_path)
                 print(com_link)
             
             message = (f"Public link to the {file_path} is copied to the clipboard.\n"
@@ -297,7 +417,7 @@ class YandexDiskMenu:
     def unpublish_file(self, file_path: str) -> str:
         """Unpublish a single file"""
         try:
-            result = self._run_command(['yandex-disk', 'unpublish', file_path], timeout=30)
+            result = self._run_command(['yandex-disk', 'unpublish', file_path], timeout=self.TIMEOUT_LONG)
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
             return f"Error: {e}"
@@ -337,7 +457,7 @@ class YandexDiskMenu:
     def sync_yandex_disk(self) -> str:
         """Trigger yandex-disk sync"""
         try:
-            result = self._run_command(['yandex-disk', 'sync'], timeout=60)
+            result = self._run_command(['yandex-disk', 'sync'], timeout=self.TIMEOUT_SYNC)
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
             return f"Sync error: {e}"
@@ -372,8 +492,76 @@ class YandexDiskMenu:
     def show_version(self) -> None:
         """Display version information"""
         message = f"<b>Yandex Disk Menu - Python Version {self.VERSION}</b><br/>\nKDE Dolphin integration for Yandex Disk sharing"
-        self.show_notification(message, 10, 'info')
+        self.show_notification(message, self.TIMEOUT_MEDIUM, 'info')
         self.logger.info(f"Version {self.VERSION} displayed")
+    
+    def _parse_file_info(self, file_path: str) -> Tuple[str, str, str, bool]:
+        """Parse file path information and determine if file is outside ya_disk"""
+        file_name = os.path.basename(file_path) if file_path else ''
+        file_dir = os.path.dirname(file_path) if file_path else ''
+        is_outside_file = not file_path.startswith(f"{self.ya_disk}/") if file_path else True
+        return file_path, file_name, file_dir, is_outside_file
+    
+    def _should_rename_file(self, file_path: str, file_name: str, is_outside_file: bool, command_type: str) -> bool:
+        """Check if file needs renaming to avoid conflicts"""
+        if not file_path or not os.path.exists(file_path):
+            return False
+            
+        stream_file_path = f"{self.stream_dir}/{file_name}"
+        ya_disk_file_path = f"{self.ya_disk}/{file_name}"
+        
+        has_conflict = os.path.exists(stream_file_path) or os.path.exists(ya_disk_file_path)
+        needs_rename = ((is_outside_file and command_type.startswith('PublishToYandex')) or 
+                       command_type.startswith('File'))
+        
+        return has_conflict and needs_rename
+    
+    def _generate_unique_file_name(self, file_path: str, file_name: str, file_dir: str) -> Tuple[str, str]:
+        """Generate unique filename to avoid conflicts"""
+        file_path_obj = Path(file_path)
+        
+        if file_name.startswith('.'):
+            # Hidden file
+            file_name_part = file_name
+            ext_part = ''
+        else:
+            # Regular file
+            file_name_part = file_path_obj.stem
+            ext_part = file_path_obj.suffix
+        
+        index = 0
+        while True:
+            index += 1
+            new_file_name = f"{file_name_part}_{index}{ext_part}"
+            new_stream_path = f"{self.stream_dir}/{new_file_name}"
+            new_ya_disk_path = f"{self.ya_disk}/{new_file_name}"
+            new_src_path = f"{file_dir}/{new_file_name}"
+            
+            if (not os.path.exists(new_stream_path) and 
+                not os.path.exists(new_ya_disk_path) and 
+                not os.path.exists(new_src_path)):
+                return new_file_name, f"{file_dir}/{new_file_name}"
+    
+    def _rename_file_if_needed(self, file_path: str, file_name: str, file_dir: str, 
+                              is_outside_file: bool, command_type: str) -> Tuple[str, str, bool]:
+        """Rename file if needed to avoid conflicts, return updated values"""
+        if not self._should_rename_file(file_path, file_name, is_outside_file, command_type):
+            return file_path, file_name, False
+        
+        new_file_name, new_src_file_path = self._generate_unique_file_name(file_path, file_name, file_dir)
+        
+        self.logger.info(f"Renaming source file: {file_path} -> {new_src_file_path}")
+        shutil.move(file_path, new_src_file_path)
+        
+        return new_src_file_path, new_file_name, True
+    
+    def _create_rename_back_function(self, is_file_name_changed: bool, src_file_path: str, original_src_file_path: str):
+        """Create a function to rename file back to original name"""
+        def rename_back():
+            if is_file_name_changed and os.path.exists(src_file_path):
+                self.logger.info(f"Renaming back: {src_file_path} -> {original_src_file_path}")
+                shutil.move(src_file_path, original_src_file_path)
+        return rename_back
 
 
 @click.command()
@@ -384,143 +572,31 @@ class YandexDiskMenu:
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging (disabled by default)')
 def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str = '', verbose: bool = False):
     """Yandex Disk menu actions for KDE Dolphin"""
+    # k_param is kept for CLI compatibility but not used in current logic
     
-    # SET TO True FOR DEBUG
     yd_menu = YandexDiskMenu(verbose=verbose)
     yd_menu.log_message(f"Start - Command: {command_type}")
     
     # Parse file info
-    src_file_path = file_path or ''
-    file_name = os.path.basename(file_path) if file_path else ''
-    file_dir = os.path.dirname(file_path) if file_path else ''
-    
-    # Check if file is outside ya_disk directory
-    is_outside_file = not src_file_path.startswith(f"{yd_menu.ya_disk}/") if src_file_path else True
-    
+    src_file_path, file_name, file_dir, is_outside_file = yd_menu._parse_file_info(file_path)
     yd_menu.wait_for_ready()
     
-    # Rename file if already exists in destination directories (following bash logic)
-    is_file_name_changed = False
+    # Handle file renaming if needed
     original_src_file_path = src_file_path
+    src_file_path, file_name, is_file_name_changed = yd_menu._rename_file_if_needed(
+        src_file_path, file_name, file_dir, is_outside_file, command_type)
     
-    if file_path and os.path.exists(file_path):
-        # Check for conflicts that require renaming (same logic as bash)
-        stream_file_path = f"{yd_menu.stream_dir}/{file_name}"
-        ya_disk_file_path = f"{yd_menu.ya_disk}/{file_name}"
-        
-        if ((os.path.exists(stream_file_path) or os.path.exists(ya_disk_file_path)) and
-            ((is_outside_file and command_type.startswith('PublishToYandex')) or 
-             command_type.startswith('File'))):
-            
-            # Generate unique filename using same logic as bash
-            file_path_obj = Path(file_path)
-            if file_name.startswith('.'):
-                # Hidden file
-                file_name_part = file_name
-                ext_part = ''
-            else:
-                # Regular file
-                file_name_part = file_path_obj.stem
-                ext_part = file_path_obj.suffix
-            
-            index = 0
-            while True:
-                index += 1
-                new_file_name = f"{file_name_part}_{index}{ext_part}"
-                new_stream_path = f"{yd_menu.stream_dir}/{new_file_name}"
-                new_ya_disk_path = f"{yd_menu.ya_disk}/{new_file_name}"
-                new_src_path = f"{file_dir}/{new_file_name}"
-                
-                if (not os.path.exists(new_stream_path) and 
-                    not os.path.exists(new_ya_disk_path) and 
-                    not os.path.exists(new_src_path)):
-                    break
-            
-            # Rename source file to the new unique name
-            new_src_file_path = f"{file_dir}/{new_file_name}"
-            yd_menu.logger.info(f"Renaming source file: {src_file_path} -> {new_src_file_path}")
-            shutil.move(src_file_path, new_src_file_path)
-            
-            # Update variables
-            src_file_path = new_src_file_path
-            file_name = new_file_name
-            ya_disk_file_path = new_ya_disk_path
-            is_file_name_changed = True
+    # Create rename back function
+    rename_back = yd_menu._create_rename_back_function(
+        is_file_name_changed, src_file_path, original_src_file_path)
     
-    def rename_back():
-        """Rename source file back to original name if it was changed"""
-        if is_file_name_changed and os.path.exists(src_file_path):
-            yd_menu.logger.info(f"Renaming back: {src_file_path} -> {original_src_file_path}")
-            shutil.move(src_file_path, original_src_file_path)
+    # Update ya_disk_file_path after potential renaming
+    ya_disk_file_path = f"{yd_menu.ya_disk}/{file_name}"
     
     # Handle different command types
     try:
-        if command_type in ['PublishToYandexCom', 'PublishToYandex']:
-            use_com = command_type == 'PublishToYandexCom'
-            yd_menu.publish_file(src_file_path, use_com)
-            
-            # For outside files, move to stream directory after publishing
-            # Note: yandex-disk publish copies the file to the yandex disk directory first, 
-            # that's why it need to be moved to the stream directory
-            if is_outside_file:
-                shutil.move(ya_disk_file_path, yd_menu.stream_dir)
-                
-        elif command_type in ['ClipboardPublishToCom', 'ClipboardPublish']:
-            clip_dest_path = yd_menu.get_clipboard_content()
-            if not clip_dest_path:
-                sys.exit(1)
-                
-            sync_status = yd_menu.sync_yandex_disk()
-            yd_menu.show_notification(f"Clipboard flushed to stream:\n<b>{clip_dest_path}</b>\n{sync_status}", 5)
-            
-            use_com = command_type == 'ClipboardPublishToCom'
-            yd_menu.wait_for_ready()
-            yd_menu.publish_file(clip_dest_path, use_com)
-            
-        elif command_type == 'UnpublishFromYandex':
-            target_file = f"{yd_menu.stream_dir}/{file_name}" if is_outside_file else src_file_path
-            result = yd_menu.unpublish_file(target_file)
-            
-            if any(error in result.lower() for error in ['unknown error', 'error:']):
-                yd_menu.show_error_and_exit(f"{result} for <b>{file_name}</b>.", f"{result} - {file_name}")
-            
-            yd_menu.show_notification(f"{result} for <b>{file_name}</b>.", 5)
-            
-        elif command_type == 'UnpublishAllCopy':
-            if is_outside_file:
-                result = yd_menu.unpublish_copies(yd_menu.stream_dir, f"{yd_menu.stream_dir}/{file_name}", file_name)
-            else:
-                result = yd_menu.unpublish_copies(file_dir, src_file_path, file_name)
-            
-            timeout = 15 if 'error' in result.lower() else 10
-            icon_type = 'error' if 'error' in result.lower() else 'info'
-            yd_menu.show_notification(f"Files unpublished:\n{result}", timeout, icon_type)
-            
-        elif command_type == 'ClipboardToStream':
-            clip_dest_path = yd_menu.get_clipboard_content()
-            if not clip_dest_path:
-                sys.exit(1)
-                
-            sync_status = yd_menu.sync_yandex_disk()
-            yd_menu.show_notification(f"Clipboard flushed to stream:\n<b>{clip_dest_path}</b>\n{sync_status}", 10)
-            
-        elif command_type == 'FileAddToStream':
-            shutil.copy2(src_file_path, yd_menu.stream_dir)
-            sync_status = yd_menu.sync_yandex_disk()
-            yd_menu.show_notification(f"<b>{src_file_path}</b> is copied to the file stream.\n{sync_status}", 5)
-            
-        elif command_type == 'FileMoveToStream':
-            shutil.move(src_file_path, yd_menu.stream_dir)
-            sync_status = yd_menu.sync_yandex_disk()
-            yd_menu.show_notification(f"<b>{src_file_path}</b> is moved to the file stream.\n{sync_status}", 5)
-            
-        elif command_type == 'ShowVersion':
-            yd_menu.show_version()
-            
-        else:
-            work_path = f"{os.path.expanduser('~')}/.local/share/kservices5/ServiceMenus"
-            yd_menu.show_notification(f"<b>Unknown action {command_type}</b>.\n\nCheck <a href='file://{work_path}/{c_param}'>{work_path}/{c_param}</a> for available actions.", 15)
-            print(f"Unknown action: {command_type}")
+        _execute_command(yd_menu, command_type, src_file_path, file_name, file_dir, 
+                        is_outside_file, ya_disk_file_path, c_param)
             
     except Exception as e:
         # Ensure rename back happens even on error
@@ -532,8 +608,128 @@ def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str
         yd_menu.show_error_and_exit(f"Unexpected error: {e}")
         
     # Rename back to original name (matches bash renameBack at end)
-    rename_back()
+    # For outside files with publish commands, file is moved to stream so don't rename back
+    should_rename_back = not (is_outside_file and command_type.startswith('PublishToYandex'))
+    if should_rename_back:
+        rename_back()
     yd_menu.log_message("Done")
+
+
+def _execute_command(yd_menu: YandexDiskMenu, command_type: str, src_file_path: str, 
+                    file_name: str, file_dir: str, is_outside_file: bool, 
+                    ya_disk_file_path: str, c_param: str) -> None:
+    """Execute the specified command type"""
+    
+    if command_type in ['PublishToYandexCom', 'PublishToYandex']:
+        _handle_publish_command(yd_menu, command_type, src_file_path, is_outside_file, ya_disk_file_path)
+        
+    elif command_type in ['ClipboardPublishToCom', 'ClipboardPublish']:
+        _handle_clipboard_publish_command(yd_menu, command_type)
+        
+    elif command_type == 'UnpublishFromYandex':
+        _handle_unpublish_command(yd_menu, src_file_path, file_name, is_outside_file)
+        
+    elif command_type == 'UnpublishAllCopy':
+        _handle_unpublish_all_command(yd_menu, src_file_path, file_name, file_dir, is_outside_file)
+        
+    elif command_type == 'ClipboardToStream':
+        _handle_clipboard_to_stream_command(yd_menu)
+        
+    elif command_type == 'FileAddToStream':
+        _handle_file_add_to_stream_command(yd_menu, src_file_path)
+        
+    elif command_type == 'FileMoveToStream':
+        _handle_file_move_to_stream_command(yd_menu, src_file_path)
+        
+    elif command_type == 'ShowVersion':
+        yd_menu.show_version()
+        
+    else:
+        _handle_unknown_command(yd_menu, command_type, c_param)
+
+
+def _handle_publish_command(yd_menu: YandexDiskMenu, command_type: str, src_file_path: str, 
+                           is_outside_file: bool, ya_disk_file_path: str) -> None:
+    """Handle publish commands"""
+    use_com = command_type == 'PublishToYandexCom'
+    yd_menu.publish_file(src_file_path, use_com)
+    
+    # For outside files, move to stream directory after publishing
+    if is_outside_file:
+        shutil.move(ya_disk_file_path, yd_menu.stream_dir)
+
+
+def _handle_clipboard_publish_command(yd_menu: YandexDiskMenu, command_type: str) -> None:
+    """Handle clipboard publish commands"""
+    clip_dest_path = yd_menu.get_clipboard_content()
+    if not clip_dest_path:
+        sys.exit(1)
+        
+    sync_status = yd_menu.sync_yandex_disk()
+    yd_menu.show_notification(f"Clipboard flushed to stream:\n<b>{clip_dest_path}</b>\n{sync_status}", 
+                             yd_menu.TIMEOUT_SHORT)
+    
+    use_com = command_type == 'ClipboardPublishToCom'
+    yd_menu.wait_for_ready()
+    yd_menu.publish_file(clip_dest_path, use_com)
+
+
+def _handle_unpublish_command(yd_menu: YandexDiskMenu, src_file_path: str, file_name: str, is_outside_file: bool) -> None:
+    """Handle unpublish command"""
+    target_file = f"{yd_menu.stream_dir}/{file_name}" if is_outside_file else src_file_path
+    result = yd_menu.unpublish_file(target_file)
+    
+    if any(error in result.lower() for error in ['unknown error', 'error:']):
+        yd_menu.show_error_and_exit(f"{result} for <b>{file_name}</b>.", f"{result} - {file_name}")
+    
+    yd_menu.show_notification(f"{result} for <b>{file_name}</b>.", yd_menu.TIMEOUT_SHORT)
+
+
+def _handle_unpublish_all_command(yd_menu: YandexDiskMenu, src_file_path: str, file_name: str, 
+                                 file_dir: str, is_outside_file: bool) -> None:
+    """Handle unpublish all copies command"""
+    if is_outside_file:
+        result = yd_menu.unpublish_copies(yd_menu.stream_dir, f"{yd_menu.stream_dir}/{file_name}", file_name)
+    else:
+        result = yd_menu.unpublish_copies(file_dir, src_file_path, file_name)
+    
+    timeout = 15 if 'error' in result.lower() else yd_menu.TIMEOUT_MEDIUM
+    icon_type = 'error' if 'error' in result.lower() else 'info'
+    yd_menu.show_notification(f"Files unpublished:\n{result}", timeout, icon_type)
+
+
+def _handle_clipboard_to_stream_command(yd_menu: YandexDiskMenu) -> None:
+    """Handle clipboard to stream command"""
+    clip_dest_path = yd_menu.get_clipboard_content()
+    if not clip_dest_path:
+        sys.exit(1)
+        
+    sync_status = yd_menu.sync_yandex_disk()
+    yd_menu.show_notification(f"Clipboard flushed to stream:\n<b>{clip_dest_path}</b>\n{sync_status}", 
+                             yd_menu.TIMEOUT_MEDIUM)
+
+
+def _handle_file_add_to_stream_command(yd_menu: YandexDiskMenu, src_file_path: str) -> None:
+    """Handle file add to stream command"""
+    shutil.copy2(src_file_path, yd_menu.stream_dir)
+    sync_status = yd_menu.sync_yandex_disk()
+    yd_menu.show_notification(f"<b>{src_file_path}</b> is copied to the file stream.\n{sync_status}", 
+                             yd_menu.TIMEOUT_SHORT)
+
+
+def _handle_file_move_to_stream_command(yd_menu: YandexDiskMenu, src_file_path: str) -> None:
+    """Handle file move to stream command"""
+    shutil.move(src_file_path, yd_menu.stream_dir)
+    sync_status = yd_menu.sync_yandex_disk()
+    yd_menu.show_notification(f"<b>{src_file_path}</b> is moved to the file stream.\n{sync_status}", 
+                             yd_menu.TIMEOUT_SHORT)
+
+
+def _handle_unknown_command(yd_menu: YandexDiskMenu, command_type: str, c_param: str) -> None:
+    """Handle unknown command"""
+    work_path = f"{os.path.expanduser('~')}/.local/share/kservices5/ServiceMenus"
+    yd_menu.show_notification(f"<b>Unknown action {command_type}</b>.\n\nCheck <a href='file://{work_path}/{c_param}'>{work_path}/{c_param}</a> for available actions.", 15)
+    print(f"Unknown action: {command_type}")
 
 
 if __name__ == '__main__':

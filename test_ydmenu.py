@@ -53,7 +53,7 @@ class TestYandexDiskMenu(unittest.TestCase):
         self.assertEqual(self.yd_menu.stream_dir, self.stream_dir)
         self.assertEqual(self.yd_menu.log_file_path, self.log_file_path)
         self.assertEqual(self.yd_menu.verbose, False)  # Test instance uses explicit False
-        self.assertEqual(self.yd_menu.VERSION, '0.5')
+        self.assertEqual(self.yd_menu.VERSION, '1.0-RC-1')
     
     def test_init_verbose_false(self):
         """Test YandexDiskMenu initialization with verbose=False"""
@@ -156,9 +156,9 @@ class TestYandexDiskMenu(unittest.TestCase):
         # Should log when service becomes ready - allow for 1 or 2 seconds
         mock_debug.assert_any_call("Yandex-disk ready after 2 seconds")
     
-    @patch('pyperclip.paste')
-    def test_get_clipboard_content_text_pyperclip(self, mock_paste):
-        """Test getting text content from clipboard using pyperclip"""
+    @patch('pyclip.paste')
+    def test_get_clipboard_content_text_pyclip(self, mock_paste):
+        """Test getting text content from clipboard using pyclip"""
         mock_paste.return_value = "Test clipboard content"
         
         # Mock xclip calls to return no image
@@ -173,9 +173,11 @@ class TestYandexDiskMenu(unittest.TestCase):
                 # Should create a text file
                 self.assertTrue(result.endswith('.txt'))
                 mock_file.assert_called_once()
-                mock_paste.assert_called_once()
+                # pyclip gets called twice: once for image check, once for text with text=True
+                self.assertEqual(mock_paste.call_count, 2)
+                mock_paste.assert_any_call(text=True)
     
-    @patch('pyperclip.paste', side_effect=Exception("pyperclip failed"))
+    @patch('pyclip.paste', side_effect=Exception("pyclip failed"))
     def test_get_clipboard_content_text_xclip_fallback(self, mock_paste):
         """Test getting text content from clipboard using xclip fallback"""
         # Mock xclip calls
@@ -197,27 +199,22 @@ class TestYandexDiskMenu(unittest.TestCase):
             # Should create a text file
             self.assertTrue(result.endswith('.txt'))
             mock_file.assert_called_once()
-            mock_paste.assert_called_once()
+            # pyclip gets called twice: once for image check, once for text, both fail
+            self.assertEqual(mock_paste.call_count, 2)
     
+    @patch('pyclip.paste', return_value=b'\x89PNG\r\n\x1a\n')  # Mock PNG image data
     @patch('subprocess.run')
-    def test_get_clipboard_content_image(self, mock_run):
+    def test_get_clipboard_content_image(self, mock_run, mock_paste):
         """Test getting image content from clipboard"""
-        # Mock xclip calls for image - first call for TARGETS, second call for actual image data
-        def run_side_effect(cmd, **kwargs):
-            if 'TARGETS' in cmd:
-                result = MagicMock()
-                result.stdout = "image/png\n"
-                return result
-            return MagicMock()
-        
-        with patch.object(self.yd_menu, '_run_command', side_effect=run_side_effect), \
-             patch('builtins.open', mock_open()) as mock_file:
+        with patch('builtins.open', mock_open()) as mock_file:
             result = self.yd_menu.get_clipboard_content()
             
             # Should create a PNG file
             self.assertTrue(result.endswith('.png'))
-            # Should still call subprocess.run for binary data (not _run_command)
-            mock_run.assert_called_once()
+            # pyclip should be called twice: once for image check, once for getting data
+            self.assertEqual(mock_paste.call_count, 2)
+            # File should be written
+            mock_file.assert_called_once()
     
     def test_show_version(self):
         """Test version display functionality"""
@@ -228,15 +225,15 @@ class TestYandexDiskMenu(unittest.TestCase):
             # Should show notification with version info
             mock_notify.assert_called_once()
             notification_msg = mock_notify.call_args[0][0]
-            self.assertIn("Python Version 0.5", notification_msg)
+            self.assertIn("Python Version 1.0-RC-1", notification_msg)
             self.assertIn("KDE Dolphin integration", notification_msg)
             
             # Should log version display
-            mock_info.assert_called_with("Version 0.5 displayed")
+            mock_info.assert_called_with("Version 1.0-RC-1 displayed")
     
-    @patch('pyperclip.copy')  
-    def test_publish_file_success_pyperclip(self, mock_copy):
-        """Test successful file publishing with pyperclip"""
+    @patch('pyclip.copy')  
+    def test_publish_file_success_pyclip(self, mock_copy):
+        """Test successful file publishing with pyclip"""
         # Mock yandex-disk publish response
         mock_result = MagicMock()
         mock_result.stdout = "https://yadi.sk/d/test123"
@@ -249,7 +246,7 @@ class TestYandexDiskMenu(unittest.TestCase):
              patch.object(self.yd_menu, 'show_notification') as mock_notify:
             self.yd_menu.publish_file(test_file, True)
             
-            # Should copy link to clipboard using pyperclip
+            # Should copy link to clipboard using pyclip
             mock_copy.assert_called_once()
             copied_link = mock_copy.call_args[0][0]
             self.assertIn("disk.yandex.com", copied_link)
@@ -259,7 +256,7 @@ class TestYandexDiskMenu(unittest.TestCase):
             notification_msg = mock_notify.call_args[0][0]
             self.assertIn("Public link", notification_msg)
     
-    @patch('pyperclip.copy', side_effect=Exception("pyperclip failed"))
+    @patch('pyclip.copy', side_effect=Exception("pyclip failed"))
     def test_publish_file_success_xclip_fallback(self, mock_copy):
         """Test successful file publishing with xclip fallback"""
         # Mock yandex-disk publish response
@@ -277,7 +274,7 @@ class TestYandexDiskMenu(unittest.TestCase):
             
             self.yd_menu.publish_file(test_file, True)
             
-            # Should try pyperclip first (fails), then use xclip fallback
+            # Should try pyclip first (fails), then use xclip fallback
             mock_copy.assert_called_once()
             # Should call _run_command twice: once for publish, once for xclip
             self.assertEqual(mock_run_cmd.call_count, 2)
@@ -474,6 +471,15 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         test_file = os.path.join(self.temp_dir, 'test.txt')
         with open(test_file, 'w') as f:
             f.write("test content")
+            
+        # Mock publish_file to simulate file being copied to yaMedia by yandex-disk
+        def mock_publish_side_effect(file_path, use_com):
+            # Simulate yandex-disk copying file to yaMedia directory
+            file_name = os.path.basename(file_path)
+            ya_disk_file = os.path.join(ya_disk_dir, file_name)
+            shutil.copy2(file_path, ya_disk_file)
+        
+        mock_publish.side_effect = mock_publish_side_effect
         
         from ydmenu import main
         
@@ -589,6 +595,15 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         conflict_file = os.path.join(ya_disk_dir, 'conflict.txt')
         with open(conflict_file, 'w') as f:
             f.write("existing content")
+            
+        # Mock publish_file to simulate file being copied to yaMedia by yandex-disk
+        def mock_publish_side_effect(file_path, use_com):
+            # Simulate yandex-disk copying file to yaMedia directory
+            file_name = os.path.basename(file_path)
+            ya_disk_file = os.path.join(ya_disk_dir, file_name)
+            shutil.copy2(file_path, ya_disk_file)
+        
+        mock_publish.side_effect = mock_publish_side_effect
         
         from ydmenu import main
         
