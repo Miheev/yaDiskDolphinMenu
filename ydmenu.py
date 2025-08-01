@@ -103,6 +103,8 @@ class YandexDiskMenu:
         
         if status_code == 'idle':
             return
+        
+        self.show_notification(f"status_line", 15, 'info')
             
         self.show_notification(f"<b>Service status: {status_code}</b>.\nWill wait for <b>30s</b> and exit if no luck.", 
                              15, 'warn')
