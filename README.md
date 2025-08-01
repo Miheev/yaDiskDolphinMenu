@@ -75,6 +75,7 @@ It creates scripts symlinks instead of copies (manual setup example)
 ``cp ./ydpublish.desktop ~/.local/share/kservices5/ServiceMenus``
     - copy script to local bin dir
 ``cp ./ydmenu.sh ~/bin``
+- Make sure ydpublish.desktop and ydmenu.sh are executable
 
 ### Finish setup
 - Logout & login

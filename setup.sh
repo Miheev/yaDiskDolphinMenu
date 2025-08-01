@@ -33,20 +33,22 @@ output=$( awk -v line="tee -a $LOG_PATH" "{gsub(/tee -a.*/,line)}1" ./ydpublish.
 echo "$output" > ./ydpublish.desktop
 
 echo "Create symlinks accordingly"
-serviceMenu=$HOME/.local/share/kservices5/ServiceMenus
-if [ ! -L $serviceMenu/ydpublish.desktop ]; then
-  desktopBak=$serviceMenu/ydpublish.desktop.bak
-  if [ -f $desktopBak ]; then
-    echo "Backup already exist: $desktopBak"
-  else
-    echo "Create backup for default desktop file $desktopBak"
-    mv $serviceMenu/ydpublish.desktop $desktopBak
-  fi
+serviceMenuList=("$HOME/.local/share/kservices5/ServiceMenus" "$HOME/.local/share/kio/servicemenus")
+for serviceMenu in "${serviceMenuList[@]}"; do
+  if [ ! -L $serviceMenu/ydpublish.desktop ]; then
+    desktopBak=$serviceMenu/ydpublish.desktop.bak
+    if [ -f $desktopBak ]; then
+      echo "Backup already exist: $desktopBak"
+    else
+      echo "Create backup for default desktop file $desktopBak"
+      mv $serviceMenu/ydpublish.desktop $desktopBak
+    fi
 
-  ln -s "$PWD/ydpublish.desktop" $serviceMenu
-fi
-if [ ! -L $HOME/bin/ydmenu.sh ]; then
-  ln -s "$PWD/ydmenu.sh" $HOME/bin
-fi
+    ln -s "$PWD/ydpublish.desktop" $serviceMenu
+  fi
+  if [ ! -L $HOME/bin/ydmenu.sh ]; then
+    ln -s "$PWD/ydmenu.sh" $HOME/bin
+  fi
+done
 
 echo "Done"
