@@ -51,4 +51,8 @@ for serviceMenu in "${serviceMenuList[@]}"; do
   fi
 done
 
+echo "Make scripts executable"
+chmod +x ./ydpublish.desktop
+chmod +x ./ydmenu.sh
+
 echo "Done"
