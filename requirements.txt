@@ -1,4 +1,2 @@
 click>=8.0.0
-PyQt5>=5.15.0
-pytest>=7.0.0
-pytest-mock>=3.10.0
+pyperclip>=1.8.0

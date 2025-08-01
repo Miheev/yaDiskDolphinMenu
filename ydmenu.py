@@ -17,12 +17,14 @@ import tempfile
 import logging
 
 import click
+import pyperclip
 
 
 class YandexDiskMenu:
     """Main class for Yandex Disk menu operations"""
     
     # Constants
+    VERSION = '0.5'
     ICONS = {
         'info': '/usr/share/yd-tools/icons/yd-128.png',
         'warn': '/usr/share/yd-tools/icons/yd-128_g.png',
@@ -31,28 +33,59 @@ class YandexDiskMenu:
     TITLE = 'Yandex.Disk'
     WAIT_TIMEOUT = 30
     
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
         # Get environment variables
         self.ya_disk_root = os.environ.get('YA_DISK_ROOT', f"{os.path.expanduser('~')}/Public")
         self.ya_disk = f"{self.ya_disk_root}/yaMedia"
         self.stream_dir = f"{self.ya_disk}/Media"
-        self.log_file_path = f"{self.ya_disk_root}/yaMedia.log"
+        self.log_file_path = f"{self.ya_disk_root}/yaMedia-python.log"
+        self.verbose = verbose
         
         self.start_time = time.time()
         
-        # Setup logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(self.log_file_path),
-                logging.StreamHandler(sys.stdout)
-            ]
-        )
+        # Setup logging with verbosity control
+        # Use a unique logger name to avoid handler duplication across instances
+        import uuid
+        logger_name = f'YandexDiskMenu_{uuid.uuid4().hex[:8]}'
+        self.logger = logging.getLogger(logger_name)
         
-    def log_message(self, message: str) -> None:
-        """Log message using logging module"""
-        logging.info(message)
+        # Set log level based on verbosity
+        log_level = logging.DEBUG if verbose else logging.INFO
+        self.logger.setLevel(log_level)
+        
+        # Clear any existing handlers (shouldn't be needed with unique names, but safety first)
+        self.logger.handlers.clear()
+        
+        # Create formatter
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        
+        # File handler (always INFO level for file)
+        file_handler = logging.FileHandler(self.log_file_path)
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+        
+        # Console handler (respects verbosity)
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(log_level)
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+        
+        # Prevent propagation to root logger
+        self.logger.propagate = False
+    
+    def __del__(self):
+        """Cleanup logger handlers to prevent resource warnings"""
+        try:
+            for handler in self.logger.handlers[:]:
+                handler.close()
+                self.logger.removeHandler(handler)
+        except:
+            pass
+        
+    def log_message(self, message: str, level: str = 'info') -> None:
+        """Log message using logging module with specified level"""
+        getattr(self.logger, level.lower())(message)
             
     def show_notification(self, message: str, timeout: int = 5, icon_type: str = 'info') -> None:
         """Show KDE notification using kdialog"""
@@ -67,40 +100,60 @@ class YandexDiskMenu:
             ], check=False, timeout=10)
         except (FileNotFoundError, subprocess.TimeoutExpired):
             # Fallback to logging if kdialog not available or times out
-            logging.warning(f"NOTIFICATION: {full_message}")
+            self.logger.warning(f"NOTIFICATION: {full_message}")
         
-        logging.info(message)
+        self.logger.info(message)
     
     def show_error_and_exit(self, message: str, log_message: str = None) -> None:
         """Show error notification and exit"""
         error_msg = log_message or message
-        logging.error(error_msg)
+        self.logger.error(error_msg)
             
         notification_msg = f"{message}\nSee <a href='file://{self.log_file_path}'>log</a> for details"
         self.show_notification(notification_msg, 15, 'error')
         sys.exit(1)
     
-    def _run_command(self, cmd: List[str], timeout: int = 30, check: bool = True) -> subprocess.CompletedProcess:
-        """Helper method to run subprocess commands with consistent error handling"""
+    def _run_command(self, cmd: List[str], timeout: int = 30, check: bool = True, input: str = None) -> subprocess.CompletedProcess:
+        """Helper method to run subprocess commands with consistent error handling and logging"""
+        self.logger.debug(f"Running command: {' '.join(cmd)}")
+        
         try:
-            return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=check)
-        except subprocess.TimeoutExpired:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=check, input=input)
+            
+            # Log stdout and stderr
+            if result.stdout:
+                # Only log stdout when in verbose mode
+                if self.verbose:
+                    self.logger.info(f"Command stdout: {result.stdout.strip()}")
+            if result.stderr:
+                # Always log stderr regardless of verbose setting
+                self.logger.warning(f"Command stderr: {result.stderr.strip()}")
+            
+            self.logger.debug(f"Command completed with return code: {result.returncode}")
+            return result
+            
+        except subprocess.TimeoutExpired as e:
+            self.logger.error(f"Command timed out after {timeout}s: {' '.join(cmd)}")
             raise subprocess.CalledProcessError(1, cmd, f"Command timed out after {timeout}s")
         except subprocess.CalledProcessError as e:
-            logging.error(f"Command failed: {' '.join(cmd)}, Error: {e}")
+            self.logger.error(f"Command failed: {' '.join(cmd)}, Return code: {e.returncode}")
+            if e.stdout:
+                self.logger.error(f"Command stdout: {e.stdout.strip()}")
+            if e.stderr:
+                self.logger.error(f"Command stderr: {e.stderr.strip()}")
             raise
     
     def wait_for_ready(self) -> None:
         """Wait for yandex-disk daemon to be ready"""
         try:
-            result = subprocess.run(['yandex-disk', 'status'], 
-                                  capture_output=True, text=True, timeout=10)
+            result = self._run_command(['yandex-disk', 'status'], timeout=10, check=False)
             # Look for "Synchronization core status: idle" format
             status_line = next((line for line in result.stdout.split('\n') 
                               if 'status:' in line.lower()), '')
             status_code = status_line.split(':', -1)[-1].strip() if ':' in status_line else 'not started'
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
             status_code = 'not started'
+            self.logger.warning("Failed to get yandex-disk status")
         
         if status_code == 'idle':
             return
@@ -111,18 +164,18 @@ class YandexDiskMenu:
         wait_count = 30
         for i in range(wait_count):
             try:
-                result = subprocess.run(['yandex-disk', 'status'], 
-                                      capture_output=True, text=True, timeout=5)
+                result = self._run_command(['yandex-disk', 'status'], timeout=5, check=False)
                 # Look for "Synchronization core status: idle" format
                 status_line = next((line for line in result.stdout.split('\n') 
                                   if 'status:' in line.lower()), '')
                 status_code = status_line.split(':', -1)[-1].strip() if ':' in status_line else 'not started'
                 
                 if status_code == 'idle':
+                    self.logger.debug(f"Yandex-disk ready after {i+1} seconds")
                     return
                     
             except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-                pass
+                self.logger.debug(f"Status check attempt {i+1} failed")
                 
             time.sleep(1)
             
@@ -132,55 +185,77 @@ class YandexDiskMenu:
         )
     
     def get_clipboard_content(self) -> Optional[str]:
-        """Get clipboard content using xclip"""
+        """Get clipboard content using pyperclip and xclip fallback for images"""
         try:
-            # Check if clipboard contains image
-            result = subprocess.run(['xclip', '-selection', 'clipboard', '-t', 'TARGETS', '-o'],
-                                  capture_output=True, text=True)
-            target_type = next((line.strip() for line in result.stdout.split('\n') 
-                              if line.strip().startswith('image')), None)
-            
             current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            full_path = f'note-{current_date}'
             
-            if target_type:
-                # Image content
-                extension = target_type.split('/')[-1] if '/' in target_type else 'png'
-                full_path = f"{self.stream_dir}/note-{current_date}.{extension}"
+            # Check if clipboard contains image using xclip (pyperclip doesn't support images)
+            try:
+                result = self._run_command(['xclip', '-selection', 'clipboard', '-t', 'TARGETS', '-o'], 
+                                         timeout=5, check=False)
+                target_type = next((line.strip() for line in result.stdout.split('\n') 
+                                  if line.strip().startswith('image')), None)
                 
-                with open(full_path, 'wb') as f:
-                    subprocess.run(['xclip', '-selection', 'clipboard', '-t', target_type, '-o'],
-                                 stdout=f, check=True)
-            else:
-                # Text content
-                result = subprocess.run(['xclip', '-selection', 'clipboard', '-o'],
-                                      capture_output=True, text=True)
-                content = result.stdout
-                
-                # Create filename from first line, sanitized
-                name_summary = ''
-                if content.strip():
-                    first_line = content.split('\n')[0][:30]
-                    # Remove problematic characters
-                    name_summary = re.sub(r'[<>|\\;/(),"\']|(https?:)|(:)|( {2})|( \.)+$', '', first_line).strip()
-                    if name_summary:
-                        name_summary = f" {name_summary}"
-                
-                full_path = f"{self.stream_dir}/note-{current_date}{name_summary}.txt"
-                
-                with open(full_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
+                if target_type:
+                    # Image content - still use xclip for binary data
+                    self.logger.debug(f"Clipboard contains image: {target_type}")
+                    extension = target_type.split('/')[-1] if '/' in target_type else 'png'
+                    full_path = f"{self.stream_dir}/note-{current_date}.{extension}"
+                    
+                    with open(full_path, 'wb') as f:
+                        # For binary data, we need to use subprocess directly
+                        subprocess.run(['xclip', '-selection', 'clipboard', '-t', target_type, '-o'],
+                                      stdout=f, check=True)
+                    
+                    self.logger.info(f"Saved clipboard image to: {full_path}")
+                    return full_path
+                    
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                self.logger.debug("xclip not available or no image in clipboard, trying text")
             
+            # Text content using pyperclip
+            try:
+                content = pyperclip.paste()
+                self.logger.debug("Retrieved text content from clipboard using pyperclip")
+            except Exception as e:
+                self.logger.warning(f"pyperclip failed, falling back to xclip: {e}")
+                # Fallback to xclip for text
+                try:
+                    result = self._run_command(['xclip', '-selection', 'clipboard', '-o'], timeout=5)
+                    content = result.stdout
+                    self.logger.debug("Retrieved text content from clipboard using xclip")
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    self.show_error_and_exit("Cannot access clipboard - both pyperclip and xclip failed")
+                    return None
+            
+            if not content or not content.strip():
+                self.logger.warning("Clipboard is empty or contains only whitespace")
+                return None
+            
+            # Create filename from first line, sanitized
+            name_summary = ''
+            if content.strip():
+                first_line = content.split('\n')[0][:30]
+                # Remove problematic characters
+                name_summary = re.sub(r'[<>|\\;/(),"\']|(https?:)|(:)|( {2})|( \.)+$', '', first_line).strip()
+                if name_summary:
+                    name_summary = f" {name_summary}"
+            
+            full_path = f"{self.stream_dir}/note-{current_date}{name_summary}.txt"
+            
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            self.logger.info(f"Saved clipboard text to: {full_path}")
             return full_path
             
-        except (subprocess.CalledProcessError, IOError) as e:
+        except (IOError, OSError) as e:
             self.show_error_and_exit(f"Save clipboard error: {e}")
     
     def publish_file(self, file_path: str, use_com_domain: bool = True) -> None:
         """Publish file and copy link to clipboard"""
         try:
-            result = subprocess.run(['yandex-disk', 'publish', file_path],
-                                  capture_output=True, text=True, check=True)
+            result = self._run_command(['yandex-disk', 'publish', file_path], timeout=30)
             publish_path = result.stdout.strip()
             
             if any(error in publish_path.lower() for error in ['unknown publish error', 'unknown error', 'error:']):
@@ -193,12 +268,22 @@ class YandexDiskMenu:
             if use_com_domain:
                 print(publish_path)
                 # Copy .com link to clipboard
-                subprocess.run(['xclip', '-selection', 'clipboard'], 
-                             input=com_link, text=True)
+                try:
+                    pyperclip.copy(com_link)
+                    self.logger.debug(f"Copied .com link to clipboard using pyperclip: {com_link}")
+                except Exception as e:
+                    self.logger.warning(f"pyperclip failed, falling back to xclip: {e}")
+                    self._run_command(['xclip', '-selection', 'clipboard'], 
+                                    timeout=5, check=True, input=com_link)
             else:
                 # Copy .ru link to clipboard
-                subprocess.run(['xclip', '-selection', 'clipboard'], 
-                             input=publish_path, text=True)
+                try:
+                    pyperclip.copy(publish_path)
+                    self.logger.debug(f"Copied .ru link to clipboard using pyperclip: {publish_path}")
+                except Exception as e:
+                    self.logger.warning(f"pyperclip failed, falling back to xclip: {e}")
+                    self._run_command(['xclip', '-selection', 'clipboard'], 
+                                    timeout=5, check=True, input=publish_path)
                 print(com_link)
             
             message = (f"Public link to the {file_path} is copied to the clipboard.\n"
@@ -212,8 +297,7 @@ class YandexDiskMenu:
     def unpublish_file(self, file_path: str) -> str:
         """Unpublish a single file"""
         try:
-            result = subprocess.run(['yandex-disk', 'unpublish', file_path],
-                                  capture_output=True, text=True, check=True)
+            result = self._run_command(['yandex-disk', 'unpublish', file_path], timeout=30)
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
             return f"Error: {e}"
@@ -253,8 +337,7 @@ class YandexDiskMenu:
     def sync_yandex_disk(self) -> str:
         """Trigger yandex-disk sync"""
         try:
-            result = subprocess.run(['yandex-disk', 'sync'],
-                                  capture_output=True, text=True, check=True)
+            result = self._run_command(['yandex-disk', 'sync'], timeout=60)
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
             return f"Sync error: {e}"
@@ -285,6 +368,12 @@ class YandexDiskMenu:
                 return new_filename
                 
             index += 1
+    
+    def show_version(self) -> None:
+        """Display version information"""
+        message = f"<b>Yandex Disk Menu - Python Version {self.VERSION}</b><br/>\nKDE Dolphin integration for Yandex Disk sharing"
+        self.show_notification(message, 10, 'info')
+        self.logger.info(f"Version {self.VERSION} displayed")
 
 
 @click.command()
@@ -292,10 +381,12 @@ class YandexDiskMenu:
 @click.argument('file_path', required=False)
 @click.argument('k_param', required=False) 
 @click.argument('c_param', required=False)
-def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str = ''):
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging (disabled by default)')
+def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str = '', verbose: bool = False):
     """Yandex Disk menu actions for KDE Dolphin"""
     
-    yd_menu = YandexDiskMenu()
+    # SET TO True FOR DEBUG
+    yd_menu = YandexDiskMenu(verbose=verbose)
     yd_menu.log_message(f"Start - Command: {command_type}")
     
     # Parse file info
@@ -308,16 +399,59 @@ def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str
     
     yd_menu.wait_for_ready()
     
-    # Generate unique destination filename for conflicts (don't rename source)
-    dest_filename = file_name
+    # Rename file if already exists in destination directories (following bash logic)
+    is_file_name_changed = False
+    original_src_file_path = src_file_path
+    
     if file_path and os.path.exists(file_path):
-        if ((os.path.exists(f"{yd_menu.stream_dir}/{file_name}") or 
-             os.path.exists(f"{yd_menu.ya_disk}/{file_name}")) and
+        # Check for conflicts that require renaming (same logic as bash)
+        stream_file_path = f"{yd_menu.stream_dir}/{file_name}"
+        ya_disk_file_path = f"{yd_menu.ya_disk}/{file_name}"
+        
+        if ((os.path.exists(stream_file_path) or os.path.exists(ya_disk_file_path)) and
             ((is_outside_file and command_type.startswith('PublishToYandex')) or 
              command_type.startswith('File'))):
             
-            # Generate unique filename for destination, keep source unchanged
-            dest_filename = yd_menu.generate_unique_filename(yd_menu.stream_dir, file_name)
+            # Generate unique filename using same logic as bash
+            file_path_obj = Path(file_path)
+            if file_name.startswith('.'):
+                # Hidden file
+                file_name_part = file_name
+                ext_part = ''
+            else:
+                # Regular file
+                file_name_part = file_path_obj.stem
+                ext_part = file_path_obj.suffix
+            
+            index = 0
+            while True:
+                index += 1
+                new_file_name = f"{file_name_part}_{index}{ext_part}"
+                new_stream_path = f"{yd_menu.stream_dir}/{new_file_name}"
+                new_ya_disk_path = f"{yd_menu.ya_disk}/{new_file_name}"
+                new_src_path = f"{file_dir}/{new_file_name}"
+                
+                if (not os.path.exists(new_stream_path) and 
+                    not os.path.exists(new_ya_disk_path) and 
+                    not os.path.exists(new_src_path)):
+                    break
+            
+            # Rename source file to the new unique name
+            new_src_file_path = f"{file_dir}/{new_file_name}"
+            yd_menu.logger.info(f"Renaming source file: {src_file_path} -> {new_src_file_path}")
+            shutil.move(src_file_path, new_src_file_path)
+            
+            # Update variables
+            src_file_path = new_src_file_path
+            file_name = new_file_name
+            ya_disk_file_path = new_ya_disk_path
+            is_file_name_changed = True
+    
+    def rename_back():
+        """Rename source file back to original name if it was changed"""
+        if is_file_name_changed and os.path.exists(src_file_path):
+            yd_menu.logger.info(f"Renaming back: {src_file_path} -> {original_src_file_path}")
+            shutil.move(src_file_path, original_src_file_path)
     
     # Handle different command types
     try:
@@ -325,9 +459,11 @@ def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str
             use_com = command_type == 'PublishToYandexCom'
             yd_menu.publish_file(src_file_path, use_com)
             
+            # For outside files, move to stream directory after publishing
+            # Note: yandex-disk publish copies the file to the yandex disk directory first, 
+            # that's why it need to be moved to the stream directory
             if is_outside_file:
-                dest_path = f"{yd_menu.stream_dir}/{dest_filename}"
-                shutil.move(src_file_path, dest_path)
+                shutil.move(ya_disk_file_path, yd_menu.stream_dir)
                 
         elif command_type in ['ClipboardPublishToCom', 'ClipboardPublish']:
             clip_dest_path = yd_menu.get_clipboard_content()
@@ -369,16 +505,17 @@ def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str
             yd_menu.show_notification(f"Clipboard flushed to stream:\n<b>{clip_dest_path}</b>\n{sync_status}", 10)
             
         elif command_type == 'FileAddToStream':
-            dest_path = f"{yd_menu.stream_dir}/{dest_filename}"
-            shutil.copy2(src_file_path, dest_path)
+            shutil.copy2(src_file_path, yd_menu.stream_dir)
             sync_status = yd_menu.sync_yandex_disk()
-            yd_menu.show_notification(f"<b>{os.path.basename(src_file_path)}</b> is copied to the file stream as <b>{dest_filename}</b>.\n{sync_status}", 5)
+            yd_menu.show_notification(f"<b>{src_file_path}</b> is copied to the file stream.\n{sync_status}", 5)
             
         elif command_type == 'FileMoveToStream':
-            dest_path = f"{yd_menu.stream_dir}/{dest_filename}"
-            shutil.move(src_file_path, dest_path)
+            shutil.move(src_file_path, yd_menu.stream_dir)
             sync_status = yd_menu.sync_yandex_disk()
-            yd_menu.show_notification(f"<b>{os.path.basename(src_file_path)}</b> is moved to the file stream as <b>{dest_filename}</b>.\n{sync_status}", 5)
+            yd_menu.show_notification(f"<b>{src_file_path}</b> is moved to the file stream.\n{sync_status}", 5)
+            
+        elif command_type == 'ShowVersion':
+            yd_menu.show_version()
             
         else:
             work_path = f"{os.path.expanduser('~')}/.local/share/kservices5/ServiceMenus"
@@ -386,8 +523,16 @@ def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str
             print(f"Unknown action: {command_type}")
             
     except Exception as e:
+        # Ensure rename back happens even on error
+        try:
+            rename_back()
+        except Exception as rollback_error:
+            yd_menu.logger.error(f"Failed to rename back: {rollback_error}")
+        
         yd_menu.show_error_and_exit(f"Unexpected error: {e}")
         
+    # Rename back to original name (matches bash renameBack at end)
+    rename_back()
     yd_menu.log_message("Done")
 
 

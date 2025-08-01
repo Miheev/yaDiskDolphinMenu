@@ -15,13 +15,19 @@ This is a **Yandex Disk integration for KDE Dolphin** that adds a context menu f
 
 ## Setup & Configuration
 
-The setup process involves:
+### Bash Version Setup
 1. Configure variables in `setup.sh`:
    - `YA_DISK_ROOT` - Parent directory of Yandex disk (e.g., `$HOME/Public`)
    - `YA_DISK_RELATIVE` - Yandex disk directory name (e.g., `yaDisk`)
    - `INBOX_RELATIVE` - Inbox directory for file stream (e.g., `Media`)
 2. Run `./setup.sh` to set global environment variables and create symlinks
-3. The script modifies `/etc/environment` and creates symlinks in KDE service menu directories
+3. The script modifies `/etc/environment` and creates symlinks for `ydpublish.desktop`
+
+### Python Version Setup (v0.5)
+1. Run `./setup.py` to set global environment variables and create Python-specific symlinks
+2. The script creates virtual environment, installs dependencies, and symlinks `ydpublish-python.desktop`
+3. Uses separate desktop file and log file to avoid conflicts with bash version
+4. Desktop entries use direct execution (no `tee` logging) since Python handles its own logging
 
 ## Dependencies & Requirements
 
@@ -29,22 +35,149 @@ The setup process involves:
 - `yandex-disk` daemon installed and running
 - `yd-tools` icon pack (icons in `/usr/share/yd-tools/icons/`)
 - Standard Linux utilities: `kdialog`, `awk`, `xclip`, `grep`, `cut`, `iconv`
+- **Python version dependencies**: `click>=8.0.0`, `pyperclip>=1.8.0` (automatically managed via virtual environment)
+- **Testing dependencies**: Uses Python's built-in `unittest` framework (no additional test dependencies required)
 
 ## Core Functionality
 
-The main script (`ydmenu.sh`) handles:
+The main script (`ydmenu.sh` for bash, `ydmenu.py` for Python) handles:
 - **Publishing**: Create public links for files (both .com and .ru domains)
 - **Clipboard operations**: Save/publish clipboard content (text and images)
 - **File management**: Copy/move files to Yandex stream directory
 - **Unpublishing**: Remove public links for files and their copies
 - **Error handling**: Wait for yandex-disk service readiness, show notifications
 - **File naming**: Auto-rename duplicates with `_number` suffix pattern
+- **Conflict resolution**: Uses rollback rename algorithm to avoid yandex-disk publish conflicts
+- **Version display**: Show current version information (`ShowVersion` command)
+
+### Python Version Enhancements (v0.5)
+- **Advanced logging**: Quiet logging by default, configurable with `--verbose` flag, structured logging to separate file and console
+- **Subprocess logging**: All subprocess calls (yandex-disk, xclip) always log stderr; stdout only logged in verbose mode
+- **Improved clipboard**: Primary clipboard access via `pyperclip` with `xclip` fallback for images and edge cases
+- **Better error handling**: Comprehensive logging of command failures with return codes and output
+- **Robust conflict resolution**: Rollback rename algorithm prevents yandex-disk publish failures
+- **Separate log files**: Uses `yaMedia-python.log` to avoid conflicts with bash version logs
 
 ## Configuration Variables
 
-Runtime configuration is done through these variables in `ydmenu.sh`:
-- `yaDisk` - Path to Yandex disk root directory
-- `streamDir` - Path to inbox/stream directory for file operations
-- `logFilePath` - Path to log file for operations
+Runtime configuration is done through environment variables:
+- `YA_DISK_ROOT` - Parent directory of Yandex disk (e.g., `$HOME/Public`)
+- Derived paths:
+  - `yaDisk` - `$YA_DISK_ROOT/yaMedia` (Yandex disk root directory)
+  - `streamDir` - `$YA_DISK_ROOT/yaMedia/Media` (inbox/stream directory for file operations)
+  - `logFilePath` - `$YA_DISK_ROOT/yaMedia.log` (bash version log file)
+  - `logFilePath` - `$YA_DISK_ROOT/yaMedia-python.log` (Python version log file)
 
-All operations are logged to `$YA_DISK_ROOT/yaMedia.log`.
+### Python Version Logging
+- **File logging**: Always INFO level to `$YA_DISK_ROOT/yaMedia-python.log`
+- **Console logging**: INFO level by default (quiet mode), DEBUG level with `--verbose` flag
+- **Structured format**: `timestamp - logger_name - level - message`
+- **Subprocess logging**: Command execution and stderr always logged; stdout only logged in verbose mode
+- **Separate log files**: Python version uses `yaMedia-python.log` to avoid conflicts with bash version
+- **Default quiet**: Quiet logging is enabled by default for cleaner output experience
+
+Bash operations are logged to `$YA_DISK_ROOT/yaMedia.log`.
+Python operations are logged to `$YA_DISK_ROOT/yaMedia-python.log`.
+
+## Usage Examples
+
+### Python Version (v0.5)
+
+#### Command Line Usage
+```bash
+# Basic commands (quiet logging by default)
+ydmenu.py PublishToYandexCom /path/to/file.txt
+ydmenu.py ClipboardPublish
+ydmenu.py FileAddToStream /path/to/file.txt
+ydmenu.py ShowVersion
+
+# Verbose mode to enable detailed logging
+ydmenu.py --verbose PublishToYandexCom /path/to/file.txt
+ydmenu.py -v ClipboardPublish
+```
+
+#### Available Commands
+- `PublishToYandexCom` - Publish file and copy .com link to clipboard
+- `PublishToYandex` - Publish file and copy .ru link to clipboard  
+- `ClipboardPublishToCom` - Save clipboard content and publish with .com link
+- `ClipboardPublish` - Save clipboard content and publish with .ru link
+- `UnpublishFromYandex` - Remove public link from file
+- `UnpublishAllCopy` - Remove public links from file and all numbered copies
+- `ClipboardToStream` - Save clipboard content to stream directory
+- `FileAddToStream` - Copy file to stream directory
+- `FileMoveToStream` - Move file to stream directory
+- `ShowVersion` - Display version information
+
+#### Logging Features
+```bash
+# Quiet logging by default - shows only essential info and errors
+ydmenu.py PublishToYandexCom file.txt
+
+# Use verbose mode to see detailed subprocess output
+ydmenu.py --verbose PublishToYandexCom file.txt
+
+# Check log file for detailed operation history
+tail -f $YA_DISK_ROOT/yaMedia-python.log
+
+# Log always includes:
+# - Command execution details
+# - Subprocess stderr (errors always visible)
+# - Clipboard operations (pyperclip vs xclip fallback)
+# - File conflict resolution
+# - Error details with return codes
+
+# Verbose mode additionally shows:
+# - Subprocess stdout (command output)
+# - Debug-level information
+```
+
+#### Clipboard Integration
+The Python version provides improved clipboard handling:
+- **Primary**: Uses `pyperclip` for cross-platform text clipboard access
+- **Fallback**: Uses `xclip` for image clipboard and when pyperclip fails
+- **Auto-detection**: Automatically detects clipboard content type (text vs image)
+- **Smart naming**: Creates meaningful filenames based on clipboard text content
+
+#### Development and Testing
+```bash
+# Use the same virtual environment created by setup.py for both production and testing
+./setup.py               # Creates venv and installs dependencies
+
+# Run unit tests using the production venv
+source venv/bin/activate
+python test_ydmenu.py
+
+# Or run tests with pytest if available
+python -m pytest test_ydmenu.py -v
+
+# The venv contains all production dependencies (click, pyperclip) needed for both runtime and testing
+```
+
+#### Rollback Rename Algorithm
+
+The Python version implements a sophisticated conflict resolution algorithm to prevent `yandex-disk publish` failures:
+
+**Problem**: When publishing files outside the Yandex disk directory, conflicts occur if a file with the same name already exists in the Yandex disk directory. This causes `yandex-disk publish` to fail with "path already exists" error.
+
+**Solution**: Rollback rename algorithm
+1. **Detect conflict**: Check if destination name conflicts with existing files
+2. **Temporary rename**: Rename source file with timestamp suffix (e.g., `file_temp_1672531234.txt`)
+3. **Execute operation**: Run yandex-disk publish/copy/move on temporarily renamed file
+4. **Automatic rename**: Yandex-disk automatically uses the unique destination name
+5. **Rollback**: For copy operations, rename source file back to original name
+
+**Example**:
+```bash
+# Scenario: Publishing /home/user/file.txt when yaMedia/file.txt already exists
+# 1. Temporarily rename: /home/user/file.txt -> /home/user/file_temp_1672531234.txt
+# 2. Publish temporary file (succeeds)
+# 3. Move to stream: yaMedia/Media/file_1.txt (auto-generated unique name)
+# 4. For outside files: source gets moved, no rollback needed
+# 5. For inside files: rename back to original name
+```
+
+**Benefits**:
+- Eliminates "path already exists" errors
+- Preserves source files for copy operations
+- Automatic conflict resolution with numbered suffixes
+- Robust error handling with guaranteed rollback

@@ -9,7 +9,8 @@ import os
 import shutil
 import subprocess
 import click.testing
-from unittest.mock import patch, MagicMock, mock_open
+import logging
+from unittest.mock import patch, MagicMock, mock_open, call
 from pathlib import Path
 
 # Add the current directory to the path so we can import ydmenu
@@ -27,6 +28,7 @@ class TestYandexDiskMenu(unittest.TestCase):
         self.ya_disk_root = os.path.join(self.temp_dir, 'yandex')
         self.ya_disk = os.path.join(self.ya_disk_root, 'yaMedia')
         self.stream_dir = os.path.join(self.ya_disk, 'Media')
+        self.log_file_path = os.path.join(self.ya_disk_root, 'yaMedia-python.log')
         
         # Create test directories
         os.makedirs(self.stream_dir, exist_ok=True)
@@ -37,7 +39,7 @@ class TestYandexDiskMenu(unittest.TestCase):
         })
         self.env_patcher.start()
         
-        self.yd_menu = YandexDiskMenu()
+        self.yd_menu = YandexDiskMenu(verbose=False)  # Explicitly use False for testing
     
     def tearDown(self):
         """Clean up test environment"""
@@ -49,54 +51,87 @@ class TestYandexDiskMenu(unittest.TestCase):
         self.assertEqual(self.yd_menu.ya_disk_root, self.ya_disk_root)
         self.assertEqual(self.yd_menu.ya_disk, self.ya_disk)
         self.assertEqual(self.yd_menu.stream_dir, self.stream_dir)
+        self.assertEqual(self.yd_menu.log_file_path, self.log_file_path)
+        self.assertEqual(self.yd_menu.verbose, False)  # Test instance uses explicit False
+        self.assertEqual(self.yd_menu.VERSION, '0.5')
     
-    @patch('ydmenu.logging')
-    def test_log_message(self, mock_logging):
-        """Test log message functionality"""
-        self.yd_menu.log_message("Test message")
-        mock_logging.info.assert_called_with("Test message")
+    def test_init_verbose_false(self):
+        """Test YandexDiskMenu initialization with verbose=False"""
+        yd_menu = YandexDiskMenu(verbose=False)
+        self.assertEqual(yd_menu.verbose, False)
+        self.assertEqual(yd_menu.logger.level, logging.INFO)
     
-    @patch('ydmenu.logging')
+    def test_init_verbose_true(self):
+        """Test YandexDiskMenu initialization with verbose=True"""
+        yd_menu = YandexDiskMenu(verbose=True)
+        self.assertEqual(yd_menu.verbose, True)
+        self.assertEqual(yd_menu.logger.level, logging.DEBUG)
+    
+    def test_init_verbose_default(self):
+        """Test YandexDiskMenu initialization with default verbose (should be False)"""
+        yd_menu = YandexDiskMenu()  # No explicit verbose parameter
+        self.assertEqual(yd_menu.verbose, False)  # Default should now be False
+        self.assertEqual(yd_menu.logger.level, logging.INFO)
+    
+    def test_log_message_default_level(self):
+        """Test log message functionality with default level"""
+        with patch.object(self.yd_menu.logger, 'info') as mock_info:
+            self.yd_menu.log_message("Test message")
+            mock_info.assert_called_with("Test message")
+    
+    def test_log_message_custom_level(self):
+        """Test log message functionality with custom level"""
+        with patch.object(self.yd_menu.logger, 'debug') as mock_debug:
+            self.yd_menu.log_message("Debug message", 'debug')
+            mock_debug.assert_called_with("Debug message")
+        
+        with patch.object(self.yd_menu.logger, 'error') as mock_error:
+            self.yd_menu.log_message("Error message", 'error')
+            mock_error.assert_called_with("Error message")
+    
     @patch('subprocess.run')
-    def test_show_notification_success(self, mock_run, mock_logging):
+    def test_show_notification_success(self, mock_run):
         """Test successful notification display"""
         mock_run.return_value = None
         
-        self.yd_menu.show_notification("Test notification", 5, 'info')
-        
-        # Check that kdialog was called
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
-        self.assertEqual(args[0], 'kdialog')
-        self.assertIn('Test notification', args[6])
-        
-        mock_logging.info.assert_called_with("Test notification")
+        with patch.object(self.yd_menu.logger, 'info') as mock_info:
+            self.yd_menu.show_notification("Test notification", 5, 'info')
+            
+            # Check that kdialog was called
+            mock_run.assert_called_once()
+            args = mock_run.call_args[0][0]
+            self.assertEqual(args[0], 'kdialog')
+            self.assertIn('Test notification', args[6])
+            
+            mock_info.assert_called_with("Test notification")
     
-    @patch('ydmenu.logging')
     @patch('subprocess.run')
-    def test_show_notification_fallback(self, mock_run, mock_logging):
+    def test_show_notification_fallback(self, mock_run):
         """Test notification fallback when kdialog not available"""
         mock_run.side_effect = FileNotFoundError()
         
-        self.yd_menu.show_notification("Test notification")
-        
-        # Should log fallback message
-        mock_logging.warning.assert_called_once()
-        mock_logging.info.assert_called_with("Test notification")
+        with patch.object(self.yd_menu.logger, 'warning') as mock_warning, \
+             patch.object(self.yd_menu.logger, 'info') as mock_info:
+            self.yd_menu.show_notification("Test notification")
+            
+            # Should log fallback message
+            mock_warning.assert_called_once()
+            mock_info.assert_called_with("Test notification")
     
-    @patch('subprocess.run')
-    def test_wait_for_ready_idle(self, mock_run):
+    def test_wait_for_ready_idle(self):
         """Test wait_for_ready when service is already idle"""
-        mock_run.return_value.stdout = "Synchronization core status: idle\n"
+        mock_result = MagicMock()
+        mock_result.stdout = "Synchronization core status: idle\n"
         
-        # Should return immediately without showing warning
-        with patch.object(self.yd_menu, 'show_notification') as mock_notify:
+        with patch.object(self.yd_menu, '_run_command', return_value=mock_result) as mock_run, \
+             patch.object(self.yd_menu, 'show_notification') as mock_notify:
             self.yd_menu.wait_for_ready()
+            
+            mock_run.assert_called_once_with(['yandex-disk', 'status'], timeout=10, check=False)
             mock_notify.assert_not_called()
     
     @patch('time.sleep')  
-    @patch('subprocess.run')
-    def test_wait_for_ready_busy_then_idle(self, mock_run, mock_sleep):
+    def test_wait_for_ready_busy_then_idle(self, mock_sleep):
         """Test wait_for_ready when service becomes idle after waiting"""
         call_count = 0
         def side_effect(*args, **kwargs):
@@ -111,17 +146,38 @@ class TestYandexDiskMenu(unittest.TestCase):
                 result.stdout = "Synchronization core status: idle\n"
             return result
         
-        mock_run.side_effect = side_effect
-        
-        with patch.object(self.yd_menu, 'show_notification'):
+        with patch.object(self.yd_menu, '_run_command', side_effect=side_effect), \
+             patch.object(self.yd_menu, 'show_notification'), \
+             patch.object(self.yd_menu.logger, 'debug') as mock_debug:
             self.yd_menu.wait_for_ready()
         
         # Should have called sleep once during the wait loop (before the second iteration that succeeds)
         self.assertEqual(mock_sleep.call_count, 1)
+        # Should log when service becomes ready - allow for 1 or 2 seconds
+        mock_debug.assert_any_call("Yandex-disk ready after 2 seconds")
     
-    @patch('subprocess.run')
-    def test_get_clipboard_content_text(self, mock_run):
-        """Test getting text content from clipboard"""
+    @patch('pyperclip.paste')
+    def test_get_clipboard_content_text_pyperclip(self, mock_paste):
+        """Test getting text content from clipboard using pyperclip"""
+        mock_paste.return_value = "Test clipboard content"
+        
+        # Mock xclip calls to return no image
+        with patch.object(self.yd_menu, '_run_command') as mock_run:
+            mock_result = MagicMock()
+            mock_result.stdout = "text/plain\n"
+            mock_run.return_value = mock_result
+        
+            with patch('builtins.open', mock_open()) as mock_file:
+                result = self.yd_menu.get_clipboard_content()
+                
+                # Should create a text file
+                self.assertTrue(result.endswith('.txt'))
+                mock_file.assert_called_once()
+                mock_paste.assert_called_once()
+    
+    @patch('pyperclip.paste', side_effect=Exception("pyperclip failed"))
+    def test_get_clipboard_content_text_xclip_fallback(self, mock_paste):
+        """Test getting text content from clipboard using xclip fallback"""
         # Mock xclip calls
         def run_side_effect(cmd, **kwargs):
             if 'TARGETS' in cmd:
@@ -134,19 +190,19 @@ class TestYandexDiskMenu(unittest.TestCase):
                 return result
             return MagicMock()
         
-        mock_run.side_effect = run_side_effect
-        
-        with patch('builtins.open', mock_open()) as mock_file:
+        with patch.object(self.yd_menu, '_run_command', side_effect=run_side_effect), \
+             patch('builtins.open', mock_open()) as mock_file:
             result = self.yd_menu.get_clipboard_content()
             
             # Should create a text file
             self.assertTrue(result.endswith('.txt'))
             mock_file.assert_called_once()
+            mock_paste.assert_called_once()
     
     @patch('subprocess.run')
     def test_get_clipboard_content_image(self, mock_run):
         """Test getting image content from clipboard"""
-        # Mock xclip calls for image
+        # Mock xclip calls for image - first call for TARGETS, second call for actual image data
         def run_side_effect(cmd, **kwargs):
             if 'TARGETS' in cmd:
                 result = MagicMock()
@@ -154,43 +210,89 @@ class TestYandexDiskMenu(unittest.TestCase):
                 return result
             return MagicMock()
         
-        mock_run.side_effect = run_side_effect
-        
-        with patch('builtins.open', mock_open()) as mock_file:
+        with patch.object(self.yd_menu, '_run_command', side_effect=run_side_effect), \
+             patch('builtins.open', mock_open()) as mock_file:
             result = self.yd_menu.get_clipboard_content()
             
             # Should create a PNG file
             self.assertTrue(result.endswith('.png'))
+            # Should still call subprocess.run for binary data (not _run_command)
+            mock_run.assert_called_once()
     
-    @patch('subprocess.run')  
-    def test_publish_file_success(self, mock_run):
-        """Test successful file publishing"""
+    def test_show_version(self):
+        """Test version display functionality"""
+        with patch.object(self.yd_menu, 'show_notification') as mock_notify, \
+             patch.object(self.yd_menu.logger, 'info') as mock_info:
+            self.yd_menu.show_version()
+            
+            # Should show notification with version info
+            mock_notify.assert_called_once()
+            notification_msg = mock_notify.call_args[0][0]
+            self.assertIn("Python Version 0.5", notification_msg)
+            self.assertIn("KDE Dolphin integration", notification_msg)
+            
+            # Should log version display
+            mock_info.assert_called_with("Version 0.5 displayed")
+    
+    @patch('pyperclip.copy')  
+    def test_publish_file_success_pyperclip(self, mock_copy):
+        """Test successful file publishing with pyperclip"""
         # Mock yandex-disk publish response
         mock_result = MagicMock()
-        mock_result.stdout.strip.return_value = "https://yadi.sk/d/test123"
-        mock_run.return_value = mock_result
+        mock_result.stdout = "https://yadi.sk/d/test123"
         
         test_file = os.path.join(self.temp_dir, 'test.txt')
         with open(test_file, 'w') as f:
             f.write("test content")
         
-        with patch.object(self.yd_menu, 'show_notification') as mock_notify:
+        with patch.object(self.yd_menu, '_run_command', return_value=mock_result), \
+             patch.object(self.yd_menu, 'show_notification') as mock_notify:
             self.yd_menu.publish_file(test_file, True)
+            
+            # Should copy link to clipboard using pyperclip
+            mock_copy.assert_called_once()
+            copied_link = mock_copy.call_args[0][0]
+            self.assertIn("disk.yandex.com", copied_link)
             
             # Should show success notification
             mock_notify.assert_called_once()
             notification_msg = mock_notify.call_args[0][0]
             self.assertIn("Public link", notification_msg)
     
-    @patch('subprocess.run')
-    def test_unpublish_file_success(self, mock_run):
+    @patch('pyperclip.copy', side_effect=Exception("pyperclip failed"))
+    def test_publish_file_success_xclip_fallback(self, mock_copy):
+        """Test successful file publishing with xclip fallback"""
+        # Mock yandex-disk publish response
+        mock_result = MagicMock()
+        mock_result.stdout = "https://yadi.sk/d/test123"
+        
+        test_file = os.path.join(self.temp_dir, 'test.txt')
+        with open(test_file, 'w') as f:
+            f.write("test content")
+        
+        with patch.object(self.yd_menu, '_run_command') as mock_run_cmd, \
+             patch.object(self.yd_menu, 'show_notification') as mock_notify:
+            # First call is for yandex-disk publish, second is for xclip fallback
+            mock_run_cmd.side_effect = [mock_result, MagicMock()]
+            
+            self.yd_menu.publish_file(test_file, True)
+            
+            # Should try pyperclip first (fails), then use xclip fallback
+            mock_copy.assert_called_once()
+            # Should call _run_command twice: once for publish, once for xclip
+            self.assertEqual(mock_run_cmd.call_count, 2)
+            
+            # Should show success notification
+            mock_notify.assert_called_once()
+    
+    def test_unpublish_file_success(self):
         """Test successful file unpublishing"""
         mock_result = MagicMock()
-        mock_result.stdout.strip.return_value = "success"
-        mock_run.return_value = mock_result
+        mock_result.stdout = "success"
         
-        result = self.yd_menu.unpublish_file("/path/to/file")
-        self.assertEqual(result, "success")
+        with patch.object(self.yd_menu, '_run_command', return_value=mock_result):
+            result = self.yd_menu.unpublish_file("/path/to/file")
+            self.assertEqual(result, "success")
     
     def test_generate_unique_filename_no_conflict(self):
         """Test unique filename generation when no conflict exists"""
@@ -215,23 +317,90 @@ class TestYandexDiskMenu(unittest.TestCase):
         result = self.yd_menu.generate_unique_filename(self.temp_dir, ".hidden")
         self.assertEqual(result, ".hidden")
     
-    @patch('subprocess.run')
-    def test_sync_yandex_disk_success(self, mock_run):
+    def test_sync_yandex_disk_success(self):
         """Test successful Yandex Disk sync"""
         mock_result = MagicMock()
-        mock_result.stdout.strip.return_value = "sync completed"
-        mock_run.return_value = mock_result
+        mock_result.stdout = "sync completed"
         
-        result = self.yd_menu.sync_yandex_disk()
-        self.assertEqual(result, "sync completed")
+        with patch.object(self.yd_menu, '_run_command', return_value=mock_result):
+            result = self.yd_menu.sync_yandex_disk()
+            self.assertEqual(result, "sync completed")
     
-    @patch('subprocess.run')
-    def test_sync_yandex_disk_error(self, mock_run):
+    def test_sync_yandex_disk_error(self):
         """Test Yandex Disk sync error"""
-        mock_run.side_effect = subprocess.CalledProcessError(1, 'yandex-disk')
+        with patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(1, 'yandex-disk')):
+            result = self.yd_menu.sync_yandex_disk()
+            self.assertIn("Sync error", result)
+    
+    def test_run_command_success(self):
+        """Test _run_command method with successful execution"""
+        mock_result = MagicMock()
+        mock_result.stdout = "command output"
+        mock_result.stderr = "command error"
+        mock_result.returncode = 0
         
-        result = self.yd_menu.sync_yandex_disk()
-        self.assertIn("Sync error", result)
+        with patch('subprocess.run', return_value=mock_result) as mock_run, \
+             patch.object(self.yd_menu.logger, 'debug') as mock_debug, \
+             patch.object(self.yd_menu.logger, 'info') as mock_info, \
+             patch.object(self.yd_menu.logger, 'warning') as mock_warning:
+            result = self.yd_menu._run_command(['test', 'command'])
+            
+            # Should call subprocess.run
+            mock_run.assert_called_once()
+            
+            # Should log debug and warning information
+            mock_debug.assert_any_call("Running command: test command")
+            # stdout should NOT be logged because test instance has verbose=False (default)
+            mock_info.assert_not_called()
+            # stderr should always be logged regardless of verbose setting
+            mock_warning.assert_any_call("Command stderr: command error")
+            mock_debug.assert_any_call("Command completed with return code: 0")
+            
+            self.assertEqual(result, mock_result)
+    
+    def test_run_command_success_verbose_mode(self):
+        """Test _run_command method with successful execution in verbose mode (stdout logged)"""
+        yd_menu_verbose = YandexDiskMenu(verbose=True)
+        mock_result = MagicMock()
+        mock_result.stdout = "command output"
+        mock_result.stderr = "command error"
+        mock_result.returncode = 0
+        
+        with patch('subprocess.run', return_value=mock_result) as mock_run, \
+             patch.object(yd_menu_verbose.logger, 'debug') as mock_debug, \
+             patch.object(yd_menu_verbose.logger, 'info') as mock_info, \
+             patch.object(yd_menu_verbose.logger, 'warning') as mock_warning:
+            result = yd_menu_verbose._run_command(['test', 'command'])
+            
+            # Should call subprocess.run
+            mock_run.assert_called_once()
+            
+            # Should log debug and info information
+            mock_debug.assert_any_call("Running command: test command")
+            # stdout should be logged because verbose=True
+            mock_info.assert_any_call("Command stdout: command output")
+            # stderr should always be logged regardless of verbose setting
+            mock_warning.assert_any_call("Command stderr: command error")
+            mock_debug.assert_any_call("Command completed with return code: 0")
+            
+            self.assertEqual(result, mock_result)
+    
+    def test_run_command_failure(self):
+        """Test _run_command method with command failure"""
+        error = subprocess.CalledProcessError(1, ['test', 'command'], 'stdout', 'stderr')
+        
+        with patch('subprocess.run', side_effect=error) as mock_run, \
+             patch.object(self.yd_menu.logger, 'debug') as mock_debug, \
+             patch.object(self.yd_menu.logger, 'error') as mock_error:
+            
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.yd_menu._run_command(['test', 'command'])
+            
+            # Should log debug and error information
+            mock_debug.assert_called_with("Running command: test command")
+            mock_error.assert_any_call("Command failed: test command, Return code: 1")
+            mock_error.assert_any_call("Command stdout: stdout")
+            mock_error.assert_any_call("Command stderr: stderr")
     
     def test_unpublish_copies_single_file(self):
         """Test unpublishing copies with single file"""
@@ -288,11 +457,14 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         self.env_patcher.stop()
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
-    @patch('subprocess.run')
+    @patch.dict(os.environ, {'YA_DISK_ROOT': ''})  # Will be set in test
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
-    @patch('ydmenu.YandexDiskMenu.show_notification')
-    def test_main_publish_command(self, mock_notify, mock_wait, mock_run):
+    @patch('ydmenu.YandexDiskMenu.publish_file')
+    def test_main_publish_command(self, mock_publish, mock_wait):
         """Test main function with publish command"""
+        # Set environment variable for this test
+        os.environ['YA_DISK_ROOT'] = self.temp_dir
+        
         # Create required directory structure
         ya_disk_dir = os.path.join(self.temp_dir, 'yaMedia')
         stream_dir = os.path.join(ya_disk_dir, 'Media')
@@ -303,11 +475,6 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         with open(test_file, 'w') as f:
             f.write("test content")
         
-        # Mock yandex-disk publish
-        mock_result = MagicMock()
-        mock_result.stdout.strip.return_value = "https://yadi.sk/d/test123"
-        mock_run.return_value = mock_result
-        
         from ydmenu import main
         
         # Test the click command directly
@@ -316,7 +483,7 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         
         self.assertEqual(result.exit_code, 0)
         mock_wait.assert_called_once()
-        mock_notify.assert_called()
+        mock_publish.assert_called_once()
 
     @patch('subprocess.run')
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
@@ -366,6 +533,109 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         self.assertTrue(os.path.exists(conflict_1_file))
         with open(conflict_1_file, 'r') as f:
             self.assertEqual(f.read(), "source content")
+    
+    @patch('ydmenu.YandexDiskMenu.wait_for_ready')
+    @patch('ydmenu.YandexDiskMenu.show_version')
+    def test_main_show_version_command(self, mock_show_version, mock_wait):
+        """Test main function with ShowVersion command"""
+        from ydmenu import main
+        
+        # Test the click command directly  
+        runner = click.testing.CliRunner()
+        result = runner.invoke(main, ['ShowVersion'])
+        
+        self.assertEqual(result.exit_code, 0)
+        mock_wait.assert_called_once()
+        mock_show_version.assert_called_once()
+    
+    @patch('ydmenu.YandexDiskMenu.wait_for_ready')
+    @patch('ydmenu.YandexDiskMenu.show_version')
+    def test_main_verbose_option(self, mock_show_version, mock_wait):
+        """Test main function with verbose option"""
+        # Create required directory structure for test
+        ya_disk_dir = os.path.join(self.temp_dir, 'yaMedia')
+        stream_dir = os.path.join(ya_disk_dir, 'Media')
+        os.makedirs(stream_dir, exist_ok=True)
+        
+        from ydmenu import main
+        
+        # Test the click command with verbose flag (enables verbose)
+        runner = click.testing.CliRunner()
+        result = runner.invoke(main, ['ShowVersion', '--verbose'])
+        
+        self.assertEqual(result.exit_code, 0)
+        mock_wait.assert_called_once()
+        mock_show_version.assert_called_once()
+    
+    @patch.dict(os.environ, {'YA_DISK_ROOT': ''})  # Will be set in test
+    @patch('ydmenu.YandexDiskMenu.wait_for_ready')
+    @patch('ydmenu.YandexDiskMenu.publish_file')
+    def test_main_publish_with_rollback_rename(self, mock_publish, mock_wait):
+        """Test main function with publish command using rollback rename algorithm"""
+        # Set environment variable for this test
+        os.environ['YA_DISK_ROOT'] = self.temp_dir
+        
+        # Create required directory structure
+        ya_disk_dir = os.path.join(self.temp_dir, 'yaMedia')
+        stream_dir = os.path.join(ya_disk_dir, 'Media')
+        os.makedirs(stream_dir, exist_ok=True)
+        
+        # Create source file outside yandex disk
+        source_file = os.path.join(self.temp_dir, 'conflict.txt')
+        with open(source_file, 'w') as f:
+            f.write("source content")
+        
+        # Create conflicting file in yandex disk root (this triggers rename)
+        conflict_file = os.path.join(ya_disk_dir, 'conflict.txt')
+        with open(conflict_file, 'w') as f:
+            f.write("existing content")
+        
+        from ydmenu import main
+        
+        # Test PublishToYandexCom with conflict (should trigger rename algorithm)
+        runner = click.testing.CliRunner()
+        result = runner.invoke(main, ['PublishToYandexCom', source_file])
+        
+        self.assertEqual(result.exit_code, 0)
+        
+        # Verify original conflict file still exists in ya_disk
+        self.assertTrue(os.path.exists(conflict_file))
+        with open(conflict_file, 'r') as f:
+            self.assertEqual(f.read(), "existing content")
+        
+        # The publish_file method should have been called with the renamed source
+        mock_publish.assert_called_once()
+        called_file_path = mock_publish.call_args[0][0]
+        self.assertTrue(called_file_path.endswith('conflict_1.txt'))
+        
+        # For outside files, source file should be moved to stream directory
+        # Original source should be gone (moved)
+        self.assertFalse(os.path.exists(source_file))
+        
+        # File should be in stream directory with renamed name
+        moved_file = os.path.join(stream_dir, 'conflict_1.txt')
+        self.assertTrue(os.path.exists(moved_file))
+        with open(moved_file, 'r') as f:
+            self.assertEqual(f.read(), "source content")
+    
+    @patch('ydmenu.YandexDiskMenu.wait_for_ready')
+    @patch('ydmenu.YandexDiskMenu.show_version')
+    def test_main_default_quiet(self, mock_show_version, mock_wait):
+        """Test main function with default behavior (should be verbose=False)"""
+        # Create required directory structure for test
+        ya_disk_dir = os.path.join(self.temp_dir, 'yaMedia')
+        stream_dir = os.path.join(ya_disk_dir, 'Media')
+        os.makedirs(stream_dir, exist_ok=True)
+        
+        from ydmenu import main
+        
+        # Test the click command without any flags (should default to verbose=False)
+        runner = click.testing.CliRunner()
+        result = runner.invoke(main, ['ShowVersion'])
+        
+        self.assertEqual(result.exit_code, 0)
+        mock_wait.assert_called_once()
+        mock_show_version.assert_called_once()
 
 
 if __name__ == '__main__':

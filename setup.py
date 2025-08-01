@@ -18,7 +18,7 @@ class YandexDiskSetup:
         self.ya_disk_root = os.path.expanduser("~/Public")
         self.ya_disk_relative = "yaDisk"
         self.inbox_relative = "Media"
-        self.log_path = "$YA_DISK_ROOT/yaMedia.log"
+        self.log_path = "$YA_DISK_ROOT/yaMedia-python.log"
         
         # Paths
         self.script_dir = Path(__file__).parent.absolute()
@@ -82,7 +82,6 @@ class YandexDiskSetup:
         self.print_status("Set local script-scoped vars")
         
         ydmenu_file = self.script_dir / "ydmenu.py"
-        ydpublish_desktop = self.script_dir / "ydpublish.desktop"
         
         if not ydmenu_file.exists():
             self.print_status(f"Error: {ydmenu_file} not found")
@@ -90,22 +89,7 @@ class YandexDiskSetup:
             
         # Update ydmenu.py (Python script already uses environment variables, no changes needed)
         self.print_status("Python script already configured to use environment variables")
-        
-        # Update desktop file log path
-        if ydpublish_desktop.exists():
-            with open(ydpublish_desktop, 'r') as f:
-                content = f.read()
-            
-            # Replace log path in desktop file
-            updated_content = content.replace(
-                'tee -a $YA_DISK_ROOT/yaMedia.log',
-                f'tee -a {self.log_path}'
-            )
-            
-            with open(ydpublish_desktop, 'w') as f:
-                f.write(updated_content)
-                
-            self.print_status("Updated desktop file log path")
+        self.print_status("Python version uses ydpublish-python.desktop (no modifications needed)")
     
     def create_symlinks(self) -> None:
         """Create symlinks in KDE service menu directories and bin"""

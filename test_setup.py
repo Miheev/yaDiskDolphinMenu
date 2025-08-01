@@ -84,19 +84,18 @@ class TestYandexDiskSetup(unittest.TestCase):
             mock_remove.assert_called_once()
     
     def test_update_script_variables(self):
-        """Test updating script variables"""
-        # Create mock Python desktop file
-        desktop_file = self.setup.script_dir / "ydpublish-python.desktop"
-        desktop_content = "Exec=cmd tee -a $YA_DISK_ROOT/yaMedia.log\n"
-        desktop_file.write_text(desktop_content)
+        """Test updating script variables (Python version doesn't need updates)"""
+        # Create mock ydmenu.py file (the method checks for this file)
+        ydmenu_file = self.setup.script_dir / "ydmenu.py"
+        ydmenu_file.write_text("#!/usr/bin/env python3\n")
         
         with patch.object(self.setup, 'print_status') as mock_print:
             self.setup.update_script_variables()
             
-            # Should update desktop file
-            updated_content = desktop_file.read_text()
-            self.assertIn(self.setup.log_path, updated_content)
-            mock_print.assert_called()
+            # Should print status messages indicating no changes needed
+            mock_print.assert_any_call("Set local script-scoped vars")
+            mock_print.assert_any_call("Python script already configured to use environment variables")
+            mock_print.assert_any_call("Python version uses ydpublish-python.desktop (no modifications needed)")
     
     def test_create_symlinks(self):
         """Test creating symlinks"""
