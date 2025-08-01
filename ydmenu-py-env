@@ -1,0 +1,24 @@
+#!/bin/bash
+# Python wrapper script that handles virtual environment activation
+# This script ensures the Python version runs with its virtual environment
+
+# Get the directory where the actual script is located (resolve symlinks)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$SCRIPT_DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+cd "$SCRIPT_DIR" || exit 1
+
+# Check if virtual environment exists
+if [ ! -d "venv" ]; then
+    echo "Error: Virtual environment not found in $SCRIPT_DIR"
+    echo "Please run 'make install' or 'python setup.py' first"
+    exit 1
+fi
+
+# Activate virtual environment and run Python script
+source venv/bin/activate
+python ydmenu.py "$@"
