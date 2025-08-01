@@ -24,7 +24,7 @@ class YandexDiskMenu:
     """Main class for Yandex Disk menu operations"""
     
     # Constants
-    VERSION = '0.5'
+    VERSION = '1.0-RC-1'
     ICONS = {
         'info': '/usr/share/yd-tools/icons/yd-128.png',
         'warn': '/usr/share/yd-tools/icons/yd-128_g.png',
