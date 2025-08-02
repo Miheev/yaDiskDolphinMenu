@@ -16,8 +16,6 @@ from typing import Optional, Tuple, List
 import tempfile
 import logging
 
-import click
-
 try:
     import pyclip
     PYCLIP_AVAILABLE = True
@@ -436,18 +434,18 @@ class YandexDiskMenu:
             self._validate_publish_result(publish_path)
             com_link = self._create_com_link(publish_path)
             
-            print(file_path)
-            if use_com_domain:
-                print(publish_path)
+            self.logger.info(file_path)
+            self.logger.info(publish_path)
+            self.logger.info(com_link)
+            if use_com_domain:                
                 self._copy_to_clipboard(com_link)
             else:
                 self._copy_to_clipboard(publish_path)
-                print(com_link)
             
-            message = (f"Public link to the {file_path} is copied to the clipboard.\n"
-                      f"<a href='{com_link}'><b>{com_link}</b></a>\n"
-                      f"<a href='{publish_path}'><b>{publish_path}</b></a>")
-            self.show_notification(message, self.TIMEOUT_ERROR)
+            #message = (f"Public link to the {file_path} is copied to the clipboard.\n"
+            #          f"<a href='{com_link}'><b>{com_link}</b></a>\n"
+            #          f"<a href='{publish_path}'><b>{publish_path}</b></a>")
+            #self.show_notification(message, self.TIMEOUT_ERROR)
             
         except subprocess.CalledProcessError as e:
             self.show_error_and_exit(f"Publish error: {e}")
@@ -596,94 +594,71 @@ class YandexDiskMenu:
         return rename_back
 
 
-@click.command()
-@click.argument('command_type')
-@click.argument('file_path', required=False)
-@click.argument('k_param', required=False) 
-@click.argument('c_param', required=False)
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging (disabled by default)')
-def main(command_type: str, file_path: str = '', k_param: str = '', c_param: str = '', verbose: bool = False):
-    """Yandex Disk menu actions for KDE Dolphin"""
-    # k_param is kept for CLI compatibility but not used in current logic
-    
+def main_impl(command_type: str, file_paths: tuple = (), k_param: str = '', c_param: str = '', verbose: bool = False):
+    """Yandex Disk menu actions for KDE Dolphin (now supports multiple files/dirs)"""
     yd_menu = YandexDiskMenu(verbose=verbose)
     yd_menu.log_message(f"Start - Command: {command_type}")
-    
-    # Parse file info
-    src_file_path, file_name, file_dir, is_outside_file = yd_menu._parse_file_info(file_path)
     yd_menu.wait_for_ready()
-    
-    # Handle file renaming if needed
-    original_src_file_path = src_file_path
-    src_file_path, file_name, is_file_name_changed = yd_menu._rename_file_if_needed(
-        src_file_path, file_name, file_dir, is_outside_file, command_type)
-    
-    # Create rename back function
-    rename_back = yd_menu._create_rename_back_function(
-        is_file_name_changed, src_file_path, original_src_file_path)
-    
-    # Update ya_disk_file_path after potential renaming
-    ya_disk_file_path = f"{yd_menu.ya_disk}/{file_name}"
-    
-    # Handle different command types
-    try:
-        _execute_command(yd_menu, command_type, src_file_path, file_name, file_dir, 
-                        is_outside_file, ya_disk_file_path, c_param)
-            
-    except Exception as e:
-        # Ensure rename back happens even on error
+
+    if not file_paths:
+        file_paths = ()
+
+    errors = []
+    for file_path in file_paths:
         try:
+            src_file_path, file_name, file_dir, is_outside_file = yd_menu._parse_file_info(file_path)
+            original_src_file_path = src_file_path
+            src_file_path, file_name, is_file_name_changed = yd_menu._rename_file_if_needed(
+                src_file_path, file_name, file_dir, is_outside_file, command_type)
+            rename_back = yd_menu._create_rename_back_function(
+                is_file_name_changed, src_file_path, original_src_file_path)
+            ya_disk_file_path = f"{yd_menu.ya_disk}/{file_name}"
+            _execute_command(yd_menu, command_type, src_file_path, file_name, file_dir, 
+                            is_outside_file, ya_disk_file_path, c_param)
+            #should_rename_back = not (is_outside_file and command_type.startswith('PublishToYandex'))
             rename_back()
-        except Exception as rollback_error:
-            yd_menu.logger.error(f"Failed to rename back: {rollback_error}")
-        
-        yd_menu.show_error_and_exit(f"Unexpected error: {e}")
-        
-    # Rename back to original name (matches bash renameBack at end)
-    # For outside files with publish commands, file is moved to stream so don't rename back
-    should_rename_back = not (is_outside_file and command_type.startswith('PublishToYandex'))
-    if should_rename_back:
-        rename_back()
+        except Exception as e:
+            errors.append((file_path, str(e)))
+            yd_menu.logger.error(f"Error processing {file_path}: {e}")
+    if errors:
+        yd_menu.show_error_and_exit(f"Errors occurred:\n" + '\n'.join(f"{fp}: {err}" for fp, err in errors))
     yd_menu.log_message("Done")
 
+
+import sys
 
 def _execute_command(yd_menu: YandexDiskMenu, command_type: str, src_file_path: str, 
                     file_name: str, file_dir: str, is_outside_file: bool, 
                     ya_disk_file_path: str, c_param: str) -> None:
-    """Execute the specified command type"""
-    
-    if command_type in ['PublishToYandexCom', 'PublishToYandex']:
+    """Execute the specified command type via handler switch statement"""
+    if command_type in ('PublishToYandexCom', 'PublishToYandex'):
         _handle_publish_command(yd_menu, command_type, src_file_path, is_outside_file, ya_disk_file_path)
-        
-    elif command_type in ['ClipboardPublishToCom', 'ClipboardPublish']:
+    elif command_type in ('ClipboardPublishToCom', 'ClipboardPublish'):
         _handle_clipboard_publish_command(yd_menu, command_type)
-        
     elif command_type == 'UnpublishFromYandex':
         _handle_unpublish_command(yd_menu, src_file_path, file_name, is_outside_file)
-        
     elif command_type == 'UnpublishAllCopy':
         _handle_unpublish_all_command(yd_menu, src_file_path, file_name, file_dir, is_outside_file)
-        
     elif command_type == 'ClipboardToStream':
         _handle_clipboard_to_stream_command(yd_menu)
-        
     elif command_type == 'FileAddToStream':
         _handle_file_add_to_stream_command(yd_menu, src_file_path)
-        
     elif command_type == 'FileMoveToStream':
         _handle_file_move_to_stream_command(yd_menu, src_file_path)
-        
     else:
         _handle_unknown_command(yd_menu, command_type, c_param)
 
 
 def _handle_publish_command(yd_menu: YandexDiskMenu, command_type: str, src_file_path: str, 
                            is_outside_file: bool, ya_disk_file_path: str) -> None:
-    """Handle publish commands"""
+    """Handle publish commands, now supports directories as a whole (not recursively)"""
     use_com = command_type == 'PublishToYandexCom'
     yd_menu.publish_file(src_file_path, use_com)
-    
-    # For outside files, move to stream directory after publishing
+    if os.path.isdir(src_file_path):
+        yd_menu.show_notification(f"Published directory {src_file_path}", yd_menu.TIMEOUT_SHORT)
+    else:
+        yd_menu.show_notification(f"Published file {src_file_path}", yd_menu.TIMEOUT_SHORT)
+    # For outside files or directories, move to stream directory after publishing
     if is_outside_file:
         shutil.move(ya_disk_file_path, yd_menu.stream_dir)
 
@@ -739,27 +714,65 @@ def _handle_clipboard_to_stream_command(yd_menu: YandexDiskMenu) -> None:
 
 
 def _handle_file_add_to_stream_command(yd_menu: YandexDiskMenu, src_file_path: str) -> None:
-    """Handle file add to stream command"""
-    shutil.copy2(src_file_path, yd_menu.stream_dir)
+    """Handle file or directory add to stream command"""
+    import errno
+    if os.path.isdir(src_file_path):
+        base_name = os.path.basename(src_file_path.rstrip(os.sep))
+        dest_dir = os.path.join(yd_menu.stream_dir, base_name)
+        try:
+            shutil.copytree(src_file_path, dest_dir)
+            msg = f"Directory <b>{src_file_path}</b> copied to stream as {dest_dir}."
+        except OSError as e:
+            if e.errno == errno.ENOTDIR:
+                shutil.copy2(src_file_path, dest_dir)
+                msg = f"File <b>{src_file_path}</b> copied to stream."
+            else:
+                raise
+    else:
+        shutil.copy2(src_file_path, yd_menu.stream_dir)
+        msg = f"File <b>{src_file_path}</b> copied to stream."
     sync_status = yd_menu.sync_yandex_disk()
-    yd_menu.show_notification(f"<b>{src_file_path}</b> is copied to the file stream.\n{sync_status}", 
-                             yd_menu.TIMEOUT_SHORT)
+    yd_menu.show_notification(f"{msg}\n{sync_status}", yd_menu.TIMEOUT_SHORT)
 
 
 def _handle_file_move_to_stream_command(yd_menu: YandexDiskMenu, src_file_path: str) -> None:
-    """Handle file move to stream command"""
-    shutil.move(src_file_path, yd_menu.stream_dir)
+    """Handle file or directory move to stream command"""
+    import errno
+    if os.path.isdir(src_file_path):
+        base_name = os.path.basename(src_file_path.rstrip(os.sep))
+        dest_dir = os.path.join(yd_menu.stream_dir, base_name)
+        try:
+            shutil.move(src_file_path, dest_dir)
+            msg = f"Directory <b>{src_file_path}</b> moved to stream as {dest_dir}."
+        except OSError as e:
+            if e.errno == errno.ENOTDIR:
+                shutil.move(src_file_path, dest_dir)
+                msg = f"File <b>{src_file_path}</b> moved to stream."
+            else:
+                raise
+    else:
+        shutil.move(src_file_path, yd_menu.stream_dir)
+        msg = f"File <b>{src_file_path}</b> moved to stream."
     sync_status = yd_menu.sync_yandex_disk()
-    yd_menu.show_notification(f"<b>{src_file_path}</b> is moved to the file stream.\n{sync_status}", 
-                             yd_menu.TIMEOUT_SHORT)
+    yd_menu.show_notification(f"{msg}\n{sync_status}", yd_menu.TIMEOUT_SHORT)
 
 
 def _handle_unknown_command(yd_menu: YandexDiskMenu, command_type: str, c_param: str) -> None:
     """Handle unknown command"""
     work_path = f"{os.path.expanduser('~')}/{yd_menu.KDE_SERVICE_MENU_PATH}"
     yd_menu.show_notification(f"<b>Unknown action {command_type}</b>.\n\nCheck <a href='file://{work_path}/{c_param}'>{work_path}/{c_param}</a> for available actions.", yd_menu.TIMEOUT_ERROR)
-    print(f"Unknown action: {command_type}")
+    yd_menu.logger.warn(f"Unknown action: {command_type}")
 
+
+import click
+@click.command()
+@click.argument('command_type')
+@click.argument('file_paths', nargs=-1, required=False)
+@click.argument('k_param', required=False)
+@click.argument('c_param', required=False)
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging (disabled by default)')
+def main(command_type: str, file_paths: tuple = (), k_param: str = '', c_param: str = '', verbose: bool = False):
+    main_impl(command_type, file_paths, k_param, c_param, verbose)
 
 if __name__ == '__main__':
     main()
