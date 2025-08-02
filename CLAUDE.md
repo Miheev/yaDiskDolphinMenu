@@ -88,7 +88,7 @@ The main script (`ydmenu.sh` for bash, `ydmenu.py` for Python) handles:
 
 ### Environment Variables File (.env)
 
-The project uses a `.env` file to manage configuration that's shared between shell and Python versions:
+The Python version reads a `.env` file to manage its configuration values (the shell scripts ignore this file):
 
 ```bash
 # Application version (used in desktop file generation)
@@ -103,7 +103,7 @@ DEFAULT_INBOX_RELATIVE="Media"
 **Key benefits:**
 - **Single source of truth**: Version is defined once in `.env` file
 - **Dynamic desktop file generation**: Version appears automatically in menu
-- **Cross-language compatibility**: Both shell and Python versions can read the same file
+- **Isolated to Python version**: Shell scripts do not read this file, it is intended for python version only
 - **Easy updates**: Change version in one place, regenerate with `setup.py`
 
 ### Runtime Environment Variables
