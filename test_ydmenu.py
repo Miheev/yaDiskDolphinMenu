@@ -17,6 +17,12 @@ from pathlib import Path
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+try:
+    from dotenv import load_dotenv, dotenv_values
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
+
 from ydmenu import YandexDiskMenu
 
 
@@ -53,7 +59,7 @@ class TestYandexDiskMenu(unittest.TestCase):
         self.assertEqual(self.yd_menu.stream_dir, self.stream_dir)
         self.assertEqual(self.yd_menu.log_file_path, self.log_file_path)
         self.assertEqual(self.yd_menu.verbose, False)  # Test instance uses explicit False
-        self.assertEqual(self.yd_menu.VERSION, '1.0-RC-1')
+# VERSION constant no longer exists in the class since show_version was removed
     
     def test_init_verbose_false(self):
         """Test YandexDiskMenu initialization with verbose=False"""
@@ -95,7 +101,7 @@ class TestYandexDiskMenu(unittest.TestCase):
         mock_run.return_value = None
         
         with patch.object(self.yd_menu.logger, 'info') as mock_info:
-            self.yd_menu.show_notification("Test notification", 5, 'info')
+            self.yd_menu.show_notification("Test notification", self.yd_menu.TIMEOUT_SHORT, 'info')
             
             # Check that kdialog was called
             mock_run.assert_called_once()
@@ -127,7 +133,7 @@ class TestYandexDiskMenu(unittest.TestCase):
              patch.object(self.yd_menu, 'show_notification') as mock_notify:
             self.yd_menu.wait_for_ready()
             
-            mock_run.assert_called_once_with(['yandex-disk', 'status'], timeout=10, check=False)
+            mock_run.assert_called_once_with(['yandex-disk', 'status'], timeout=self.yd_menu.TIMEOUT_MEDIUM, check=False)
             mock_notify.assert_not_called()
     
     @patch('time.sleep')  
@@ -215,21 +221,6 @@ class TestYandexDiskMenu(unittest.TestCase):
             self.assertEqual(mock_paste.call_count, 2)
             # File should be written
             mock_file.assert_called_once()
-    
-    def test_show_version(self):
-        """Test version display functionality"""
-        with patch.object(self.yd_menu, 'show_notification') as mock_notify, \
-             patch.object(self.yd_menu.logger, 'info') as mock_info:
-            self.yd_menu.show_version()
-            
-            # Should show notification with version info
-            mock_notify.assert_called_once()
-            notification_msg = mock_notify.call_args[0][0]
-            self.assertIn("Python Version 1.0-RC-1", notification_msg)
-            self.assertIn("KDE Dolphin integration", notification_msg)
-            
-            # Should log version display
-            mock_info.assert_called_with("Version 1.0-RC-1 displayed")
     
     @patch('pyclip.copy')  
     def test_publish_file_success_pyclip(self, mock_copy):
@@ -325,7 +316,7 @@ class TestYandexDiskMenu(unittest.TestCase):
     
     def test_sync_yandex_disk_error(self):
         """Test Yandex Disk sync error"""
-        with patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(1, 'yandex-disk')):
+        with patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(self.yd_menu.EXIT_CODE_ERROR, 'yandex-disk')):
             result = self.yd_menu.sync_yandex_disk()
             self.assertIn("Sync error", result)
     
@@ -384,7 +375,7 @@ class TestYandexDiskMenu(unittest.TestCase):
     
     def test_run_command_failure(self):
         """Test _run_command method with command failure"""
-        error = subprocess.CalledProcessError(1, ['test', 'command'], 'stdout', 'stderr')
+        error = subprocess.CalledProcessError(self.yd_menu.EXIT_CODE_ERROR, ['test', 'command'], 'stdout', 'stderr')
         
         with patch('subprocess.run', side_effect=error) as mock_run, \
              patch.object(self.yd_menu.logger, 'debug') as mock_debug, \
@@ -395,7 +386,7 @@ class TestYandexDiskMenu(unittest.TestCase):
             
             # Should log debug and error information
             mock_debug.assert_called_with("Running command: test command")
-            mock_error.assert_any_call("Command failed: test command, Return code: 1")
+            mock_error.assert_any_call(f"Command failed: test command, Return code: {self.yd_menu.EXIT_CODE_ERROR}")
             mock_error.assert_any_call("Command stdout: stdout")
             mock_error.assert_any_call("Command stderr: stderr")
     
@@ -541,37 +532,19 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
             self.assertEqual(f.read(), "source content")
     
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
-    @patch('ydmenu.YandexDiskMenu.show_version')
-    def test_main_show_version_command(self, mock_show_version, mock_wait):
-        """Test main function with ShowVersion command"""
-        from ydmenu import main
-        
-        # Test the click command directly  
-        runner = click.testing.CliRunner()
-        result = runner.invoke(main, ['ShowVersion'])
-        
-        self.assertEqual(result.exit_code, 0)
-        mock_wait.assert_called_once()
-        mock_show_version.assert_called_once()
-    
-    @patch('ydmenu.YandexDiskMenu.wait_for_ready')
-    @patch('ydmenu.YandexDiskMenu.show_version')
-    def test_main_verbose_option(self, mock_show_version, mock_wait):
+    def test_main_verbose_option(self, mock_wait):
         """Test main function with verbose option"""
-        # Create required directory structure for test
-        ya_disk_dir = os.path.join(self.temp_dir, 'yaMedia')
-        stream_dir = os.path.join(ya_disk_dir, 'Media')
-        os.makedirs(stream_dir, exist_ok=True)
-        
         from ydmenu import main
         
-        # Test the click command with verbose flag (enables verbose)
+        # Test the click command with verbose flag - use ClipboardToStream which is simpler
         runner = click.testing.CliRunner()
-        result = runner.invoke(main, ['ShowVersion', '--verbose'])
         
-        self.assertEqual(result.exit_code, 0)
-        mock_wait.assert_called_once()
-        mock_show_version.assert_called_once()
+        with patch('ydmenu._handle_clipboard_to_stream_command') as mock_clipboard:
+            result = runner.invoke(main, ['ClipboardToStream', '--verbose'])
+            
+            self.assertEqual(result.exit_code, 0)
+            mock_wait.assert_called_once()
+            mock_clipboard.assert_called_once()
     
     @patch.dict(os.environ, {'YA_DISK_ROOT': ''})  # Will be set in test
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
@@ -634,23 +607,19 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
             self.assertEqual(f.read(), "source content")
     
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
-    @patch('ydmenu.YandexDiskMenu.show_version')
-    def test_main_default_quiet(self, mock_show_version, mock_wait):
+    def test_main_default_quiet(self, mock_wait):
         """Test main function with default behavior (should be verbose=False)"""
-        # Create required directory structure for test
-        ya_disk_dir = os.path.join(self.temp_dir, 'yaMedia')
-        stream_dir = os.path.join(ya_disk_dir, 'Media')
-        os.makedirs(stream_dir, exist_ok=True)
-        
         from ydmenu import main
         
-        # Test the click command without any flags (should default to verbose=False)
+        # Test the click command without any flags - use ClipboardToStream which is simpler
         runner = click.testing.CliRunner()
-        result = runner.invoke(main, ['ShowVersion'])
         
-        self.assertEqual(result.exit_code, 0)
-        mock_wait.assert_called_once()
-        mock_show_version.assert_called_once()
+        with patch('ydmenu._handle_clipboard_to_stream_command') as mock_clipboard:
+            result = runner.invoke(main, ['ClipboardToStream'])
+            
+            self.assertEqual(result.exit_code, 0)
+            mock_wait.assert_called_once()
+            mock_clipboard.assert_called_once()
 
 
 if __name__ == '__main__':

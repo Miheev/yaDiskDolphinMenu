@@ -4,7 +4,7 @@
 Type=Service
 ServiceTypes=all/allfiles
 MimeType=all/all;
-Actions=PublishToYandexCom;ClipboardPublishToCom;PublishToYandex;ClipboardPublish;UnpublishFromYandex;UnpublishAllCopy;ClipboardToStream;FileAddToStream;FileMoveToStream;
+Actions=FileAddToStream;FileMoveToStream;PublishToYandex;PublishToYandexCom;UnpublishFromYandex;UnpublishAllCopy;_SEPARATOR_;ClipboardPublish;ClipboardPublishToCom;ClipboardToStream;
 Icon=/usr/share/yd-tools/icons/yd-128.png
 X-KDE-Priority=TopLevel
 X-KDE-Icon=/usr/share/yd-tools/icons/yd-128.png
@@ -12,56 +12,60 @@ X-KDE-ServiceTypes=KonqPopupMenu/Plugin
 Name=ydpublish.desktop
 X-KDE-Submenu=YaDisk
 
-[Desktop Action PublishToYandexCom]
-Name=Publish file & copy ya.COM link
-Icon=/usr/share/yd-tools/icons/yd-128.png
-# &>> $YA_DISK_ROOT/yaMedia.log
-Exec=ydmenu.sh PublishToYandexCom %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
-
-
-[Desktop Action ClipboardPublishToCom]
-Name=Publish clipboard & copy ya.COM link
-Icon=/usr/share/yd-tools/icons/light/yd-ind-error.png
-Exec=ydmenu.sh ClipboardPublishToCom %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
-
-
-[Desktop Action PublishToYandex]
-Name=Publish file & copy ya.RU link
-Icon=/usr/share/yd-tools/icons/yd-128.png
-Exec=ydmenu.sh PublishToYandex %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
-
-
-[Desktop Action ClipboardPublish]
-Name=Publish clipboard & copy ya.RU link
-Icon=/usr/share/yd-tools/icons/light/yd-ind-error.png
-Exec=ydmenu.sh ClipboardPublish %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
-
-
-[Desktop Action UnpublishFromYandex]
-Name=Remove public link
-Icon=/usr/share/yd-tools/icons/yd-128_g.png
-Exec=ydmenu.sh UnpublishFromYandex %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
-
-
-[Desktop Action UnpublishAllCopy]
-Name=Remove links for all copies
-Icon=/usr/share/yd-tools/icons/yd-128_g.png
-Exec=ydmenu.sh UnpublishAllCopy %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
-
-
-[Desktop Action ClipboardToStream]
-Name=Save clipboard to stream
-Icon=/usr/share/yd-tools/icons/light/yd-ind-error.png
-Exec=ydmenu.sh ClipboardToStream %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
-
 
 [Desktop Action FileAddToStream]
-Name=Add file to stream
+Name=Add to Stream
 Icon=/usr/share/yd-tools/icons/yd-128.png
 Exec=ydmenu.sh FileAddToStream %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
 
 
 [Desktop Action FileMoveToStream]
-Name=Move file to stream
+Name=Move to Stream
 Icon=/usr/share/yd-tools/icons/yd-128.png
 Exec=ydmenu.sh FileMoveToStream %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
+
+
+[Desktop Action PublishToYandex]
+Name=Publish & Copy Link (.ru)
+Icon=/usr/share/yd-tools/icons/yd-128.png
+Exec=ydmenu.sh PublishToYandex %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
+
+
+[Desktop Action PublishToYandexCom]
+Name=Publish & Copy Link (.com)
+Icon=/usr/share/yd-tools/icons/yd-128.png
+# &>> $YA_DISK_ROOT/yaMedia.log
+Exec=ydmenu.sh PublishToYandexCom %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
+
+
+[Desktop Action UnpublishFromYandex]
+Name=Remove Link
+Icon=/usr/share/yd-tools/icons/yd-128_g.png
+Exec=ydmenu.sh UnpublishFromYandex %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
+
+
+[Desktop Action UnpublishAllCopy]
+Name=Remove Links (All Copies)
+Icon=/usr/share/yd-tools/icons/yd-128_g.png
+Exec=ydmenu.sh UnpublishAllCopy %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
+
+
+[Desktop Action ClipboardPublish]
+Name=Publish Clipboard (.ru)
+Icon=/usr/share/yd-tools/icons/light/yd-ind-error.png
+Exec=ydmenu.sh ClipboardPublish %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
+
+
+[Desktop Action ClipboardPublishToCom]
+Name=Publish Clipboard (.com)
+Icon=/usr/share/yd-tools/icons/light/yd-ind-error.png
+Exec=ydmenu.sh ClipboardPublishToCom %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
+
+
+[Desktop Action ClipboardToStream]
+Name=Save Clipboard
+Icon=/usr/share/yd-tools/icons/light/yd-ind-error.png
+Exec=ydmenu.sh ClipboardToStream %F %k %c 2>&1 | tee -a $YA_DISK_ROOT/yaMedia.log
+
+
+

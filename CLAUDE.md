@@ -9,8 +9,13 @@ This is a **Yandex Disk integration for KDE Dolphin** that adds a context menu f
 ## Key Files & Architecture
 
 - **`ydmenu.sh`** - Main logic script that handles all Yandex Disk operations (publish, unpublish, clipboard operations, file moves)
-- **`ydpublish.desktop`** - KDE service menu definition that creates the Dolphin context menu entries
-- **`setup.sh`** - Installation script that configures environment variables and creates symlinks
+- **`ydmenu.py`** - Python version of the main logic with enhanced features and logging
+- **`ydpublish.desktop`** - KDE service menu definition that creates the Dolphin context menu entries (bash version)
+- **`ydpublish-python.desktop`** - KDE service menu definition for Python version (generated from template)
+- **`ydpublish-python.desktop.template`** - Template for generating the Python version desktop file with dynamic version
+- **`.env`** - Environment variables file containing application configuration (version, paths)
+- **`setup.sh`** - Installation script that configures environment variables and creates symlinks (bash version)
+- **`setup.py`** - Installation script for Python version with virtual environment management
 - **`open-as-root-kde5old.desktop`** - Additional desktop entry for opening folders with root privileges
 
 ## Setup & Configuration
@@ -56,7 +61,7 @@ make install && python setup.py
 - `yandex-disk` daemon installed and running
 - `yd-tools` icon pack (icons in `/usr/share/yd-tools/icons/`)
 - Standard Linux utilities: `kdialog`, `awk`, `xclip`, `grep`, `cut`, `iconv`
-- **Python version dependencies**: `click>=8.0.0`, `pyclip>=0.7.0` (automatically managed via virtual environment)
+- **Python version dependencies**: `click>=8.0.0`, `pyclip>=0.7.0`, `python-dotenv>=1.0.0` (automatically managed via virtual environment)
 - **Testing dependencies**: Uses Python's built-in `unittest` framework (no additional test dependencies required)
 
 ## Core Functionality
@@ -69,7 +74,7 @@ The main script (`ydmenu.sh` for bash, `ydmenu.py` for Python) handles:
 - **Error handling**: Wait for yandex-disk service readiness, show notifications
 - **File naming**: Auto-rename duplicates with `_number` suffix pattern
 - **Conflict resolution**: Uses rollback rename algorithm to avoid yandex-disk publish conflicts
-- **Version display**: Show current version information (`ShowVersion` command)
+- **Version display**: Version appears automatically in context menu (no command needed)
 
 ### Python Version Enhancements (v0.5)
 - **Advanced logging**: Quiet logging by default, configurable with `--verbose` flag, structured logging to separate file and console
@@ -80,6 +85,28 @@ The main script (`ydmenu.sh` for bash, `ydmenu.py` for Python) handles:
 - **Separate log files**: Uses `yaMedia-python.log` to avoid conflicts with bash version logs
 
 ## Configuration Variables
+
+### Environment Variables File (.env)
+
+The project uses a `.env` file to manage configuration that's shared between shell and Python versions:
+
+```bash
+# Application version (used in desktop file generation)
+YADISK_MENU_VERSION=1.0-RC-1
+
+# Default paths (can be overridden by setup scripts)
+DEFAULT_YA_DISK_ROOT="$HOME/Public"
+DEFAULT_YA_DISK_RELATIVE="yaDisk"  
+DEFAULT_INBOX_RELATIVE="Media"
+```
+
+**Key benefits:**
+- **Single source of truth**: Version is defined once in `.env` file
+- **Dynamic desktop file generation**: Version appears automatically in menu
+- **Cross-language compatibility**: Both shell and Python versions can read the same file
+- **Easy updates**: Change version in one place, regenerate with `setup.py`
+
+### Runtime Environment Variables
 
 Runtime configuration is done through environment variables:
 - `YA_DISK_ROOT` - Parent directory of Yandex disk (e.g., `$HOME/Public`)
@@ -137,7 +164,7 @@ make uninstall      # Remove symlinks (keeps files)
 ydmenu.py PublishToYandexCom /path/to/file.txt
 ydmenu.py ClipboardPublish
 ydmenu.py FileAddToStream /path/to/file.txt
-ydmenu.py ShowVersion
+# Version information is now displayed in the context menu automatically
 
 # Verbose mode to enable detailed logging
 ydmenu.py --verbose PublishToYandexCom /path/to/file.txt
@@ -154,7 +181,6 @@ ydmenu.py -v ClipboardPublish
 - `ClipboardToStream` - Save clipboard content to stream directory
 - `FileAddToStream` - Copy file to stream directory
 - `FileMoveToStream` - Move file to stream directory
-- `ShowVersion` - Display version information
 
 #### Logging Features
 ```bash

@@ -68,12 +68,10 @@ class ClipboardHandler:
                 # Try to get binary data from clipboard
                 data = pyclip.paste()
                 if data and isinstance(data, bytes):
-                    # Check if it looks like image data (simple heuristic)
-                    if (data.startswith(b'\x89PNG') or 
-                        data.startswith(b'\xff\xd8\xff') or 
-                        data.startswith(b'BM') or
-                        data.startswith(b'GIF87a') or
-                        data.startswith(b'GIF89a')):
+                    # Check if it looks like image data using signature constants
+                    # Note: We need to access constants from YandexDiskMenu class
+                    signatures = YandexDiskMenu.IMAGE_SIGNATURES
+                    if any(data.startswith(sig) for sig in signatures.values()):
                         self.logger.debug("Clipboard contains image data (detected via pyclip)")
                         return True
                 return False
@@ -98,13 +96,39 @@ class ClipboardHandler:
 class YandexDiskMenu:
     """Main class for Yandex Disk menu operations"""
     
-    # Constants
-    VERSION = '1.0-RC-1'
+    # Path constants
+    ICON_BASE_PATH = '/usr/share/yd-tools/icons'
     ICONS = {
-        'info': '/usr/share/yd-tools/icons/yd-128.png',
-        'warn': '/usr/share/yd-tools/icons/yd-128_g.png',
-        'error': '/usr/share/yd-tools/icons/light/yd-ind-error.png'
+        'info': f'{ICON_BASE_PATH}/yd-128.png',
+        'warn': f'{ICON_BASE_PATH}/yd-128_g.png',
+        'error': f'{ICON_BASE_PATH}/light/yd-ind-error.png'
     }
+    
+    # Directory and file name constants
+    YANDEX_DISK_DIR = 'yaMedia'
+    STREAM_DIR = 'Media'
+    LOG_FILE_NAME = 'yaMedia-python.log'
+    NOTE_FILE_PREFIX = 'note-'
+    KDE_SERVICE_MENU_PATH = '.local/share/kservices5/ServiceMenus'
+    
+    # File extension constants
+    DEFAULT_IMAGE_EXT = 'png'
+    DEFAULT_TEXT_EXT = 'txt'
+    
+    # URL constants
+    YANDEX_DISK_URL_BASE = 'https://disk.yandex.com'
+    YANDEX_SHORT_URL_MARKER = '.sk'
+    
+    # Image file signatures
+    IMAGE_SIGNATURES = {
+        'PNG': b'\x89PNG',
+        'JPEG': b'\xff\xd8\xff',
+        'BMP': b'BM',
+        'GIF87a': b'GIF87a',
+        'GIF89a': b'GIF89a'
+    }
+    
+    # Application constants
     TITLE = 'Yandex.Disk'
     WAIT_TIMEOUT = 30
     
@@ -113,13 +137,25 @@ class YandexDiskMenu:
     TIMEOUT_MEDIUM = 10
     TIMEOUT_LONG = 30
     TIMEOUT_SYNC = 60
+    TIMEOUT_ERROR = 15
+    SLEEP_INTERVAL = 1
+
+    # Numeric constants
+    UUID_HEX_LENGTH = 8
+    TEXT_SUMMARY_LENGTH = 30
+    EXIT_CODE_ERROR = 1
+
+    DEFAULT_INDEX = 0
+    SPLIT_INDEX_LAST = -1
+    FIRST_LINE_INDEX = 0
+    INCREMENT_STEP = 1
     
     def __init__(self, verbose: bool = False):
         # Get environment variables
         self.ya_disk_root = os.environ.get('YA_DISK_ROOT', f"{os.path.expanduser('~')}/Public")
-        self.ya_disk = f"{self.ya_disk_root}/yaMedia"
-        self.stream_dir = f"{self.ya_disk}/Media"
-        self.log_file_path = f"{self.ya_disk_root}/yaMedia-python.log"
+        self.ya_disk = f"{self.ya_disk_root}/{self.YANDEX_DISK_DIR}"
+        self.stream_dir = f"{self.ya_disk}/{self.STREAM_DIR}"
+        self.log_file_path = f"{self.ya_disk_root}/{self.LOG_FILE_NAME}"
         self.verbose = verbose
         
         self.start_time = time.time()
@@ -127,7 +163,7 @@ class YandexDiskMenu:
         # Setup logging with verbosity control
         # Use a unique logger name to avoid handler duplication across instances
         import uuid
-        logger_name = f'YandexDiskMenu_{uuid.uuid4().hex[:8]}'
+        logger_name = f'YandexDiskMenu_{uuid.uuid4().hex[:self.UUID_HEX_LENGTH]}'
         self.logger = logging.getLogger(logger_name)
         
         # Set log level based on verbosity
@@ -171,8 +207,10 @@ class YandexDiskMenu:
         """Log message using logging module with specified level"""
         getattr(self.logger, level.lower())(message)
             
-    def show_notification(self, message: str, timeout: int = 5, icon_type: str = 'info') -> None:
+    def show_notification(self, message: str, timeout: int = None, icon_type: str = 'info') -> None:
         """Show KDE notification using kdialog"""
+        if timeout is None:
+            timeout = self.TIMEOUT_SHORT
         icon = self.ICONS.get(icon_type, self.ICONS['info'])
         elapsed_time = int(time.time() - self.start_time)
         full_message = f"{message}\nTime: {elapsed_time}s"
@@ -194,8 +232,8 @@ class YandexDiskMenu:
         self.logger.error(error_msg)
             
         notification_msg = f"{message}\nSee <a href='file://{self.log_file_path}'>log</a> for details"
-        self.show_notification(notification_msg, 15, 'error')
-        sys.exit(1)
+        self.show_notification(notification_msg, self.TIMEOUT_ERROR, 'error')
+        sys.exit(self.EXIT_CODE_ERROR)
     
     def _run_command(self, cmd: List[str], timeout: int = None, check: bool = True, input: str = None) -> subprocess.CompletedProcess:
         """Helper method to run subprocess commands with consistent error handling and logging"""
@@ -219,7 +257,7 @@ class YandexDiskMenu:
             
         except subprocess.TimeoutExpired as e:
             self.logger.error(f"Command timed out after {timeout}s: {' '.join(cmd)}")
-            raise subprocess.CalledProcessError(1, cmd, f"Command timed out after {timeout}s")
+            raise subprocess.CalledProcessError(self.EXIT_CODE_ERROR, cmd, f"Command timed out after {timeout}s")
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Command failed: {' '.join(cmd)}, Return code: {e.returncode}")
             if e.stdout:
@@ -232,7 +270,7 @@ class YandexDiskMenu:
         """Parse yandex-disk status output to extract status code"""
         status_line = next((line for line in stdout.split('\n') 
                           if 'status:' in line.lower()), '')
-        return status_line.split(':', -1)[-1].strip() if ':' in status_line else 'not started'
+        return status_line.split(':', self.SPLIT_INDEX_LAST)[self.SPLIT_INDEX_LAST].strip() if ':' in status_line else 'not started'
     
     def _get_yandex_status(self, timeout: int = None) -> str:
         """Get current yandex-disk status"""
@@ -250,15 +288,15 @@ class YandexDiskMenu:
         if status_code == 'idle':
             return
         
-        self.show_notification(f"<b>Service status: {status_code}</b>.\nWill wait for <b>30s</b> and exit if no luck.", 
-                             15, 'warn')
+        self.show_notification(f"<b>Service status: {status_code}</b>.\nWill wait for <b>{self.WAIT_TIMEOUT}s</b> and exit if no luck.", 
+                             self.TIMEOUT_ERROR, 'warn')
         
         for i in range(self.WAIT_TIMEOUT):
             status_code = self._get_yandex_status(timeout=self.TIMEOUT_SHORT)
             if status_code == 'idle':
-                self.logger.debug(f"Yandex-disk ready after {i+1} seconds")
+                self.logger.debug(f"Yandex-disk ready after {i+self.INCREMENT_STEP} seconds")
                 return
-            time.sleep(1)
+            time.sleep(self.SLEEP_INTERVAL)
             
         self.show_error_and_exit(
             "<b>Service is not available</b>.\nTry later or restart it via\n<b><i>yandex-disk stop && yandex-disk start</i></b>.",
@@ -283,8 +321,8 @@ class YandexDiskMenu:
     
     def _save_clipboard_image(self, target_type: str, current_date: str) -> str:
         """Save clipboard image to file using native Python libraries with xclip fallback"""
-        extension = target_type.split('/')[-1] if '/' in target_type else 'png'
-        full_path = f"{self.stream_dir}/note-{current_date}.{extension}"
+        extension = target_type.split('/')[self.SPLIT_INDEX_LAST] if '/' in target_type else self.DEFAULT_IMAGE_EXT
+        full_path = f"{self.stream_dir}/{self.NOTE_FILE_PREFIX}{current_date}.{extension}"
         
         # Try pyclip first
         image_data = self.clipboard.get_image_data()
@@ -329,13 +367,13 @@ class YandexDiskMenu:
         """Create sanitized filename from text content"""
         name_summary = ''
         if content.strip():
-            first_line = content.split('\n')[0][:30]
+            first_line = content.split('\n')[self.FIRST_LINE_INDEX][:self.TEXT_SUMMARY_LENGTH]
             # Remove problematic characters
             name_summary = re.sub(r'[<>|\\;/(),"\']|(https?:)|(:)|( {2})|( \.)+$', '', first_line).strip()
             if name_summary:
                 name_summary = f" {name_summary}"
         
-        return f"{self.stream_dir}/note-{current_date}{name_summary}.txt"
+        return f"{self.stream_dir}/{self.NOTE_FILE_PREFIX}{current_date}{name_summary}.{self.DEFAULT_TEXT_EXT}"
     
     def get_clipboard_content(self) -> Optional[str]:
         """Get clipboard content using pyclip with xclip fallback"""
@@ -381,7 +419,7 @@ class YandexDiskMenu:
     
     def _create_com_link(self, publish_path: str) -> str:
         """Convert .ru link to .com domain"""
-        return f"https://disk.yandex.com{publish_path.split('.sk', 1)[-1]}" if '.sk' in publish_path else publish_path
+        return f"{self.YANDEX_DISK_URL_BASE}{publish_path.split(self.YANDEX_SHORT_URL_MARKER, self.INCREMENT_STEP)[self.SPLIT_INDEX_LAST]}" if self.YANDEX_SHORT_URL_MARKER in publish_path else publish_path
     
     def _validate_publish_result(self, publish_path: str) -> None:
         """Validate yandex-disk publish result for errors"""
@@ -409,7 +447,7 @@ class YandexDiskMenu:
             message = (f"Public link to the {file_path} is copied to the clipboard.\n"
                       f"<a href='{com_link}'><b>{com_link}</b></a>\n"
                       f"<a href='{publish_path}'><b>{publish_path}</b></a>")
-            self.show_notification(message, 15)
+            self.show_notification(message, self.TIMEOUT_ERROR)
             
         except subprocess.CalledProcessError as e:
             self.show_error_and_exit(f"Publish error: {e}")
@@ -434,10 +472,10 @@ class YandexDiskMenu:
             ext_part = ''
         
         results = []
-        index = 0
+        index = self.DEFAULT_INDEX
         
         while True:
-            if index == 0:
+            if index == self.DEFAULT_INDEX:
                 current_file = base_file
                 current_name = file_name
             else:
@@ -450,7 +488,7 @@ class YandexDiskMenu:
             result = self.unpublish_file(current_file)
             results.append(f"<b>{current_name}</b> - {result}")
             
-            index += 1
+            index += self.INCREMENT_STEP
         
         return ';\n'.join(results)
     
@@ -473,9 +511,9 @@ class YandexDiskMenu:
             name_part = filename
             ext_part = ''
         
-        index = 0
+        index = self.DEFAULT_INDEX
         while True:
-            if index == 0:
+            if index == self.DEFAULT_INDEX:
                 new_filename = filename
             else:
                 new_filename = f"{name_part}_{index}{ext_part}"
@@ -487,13 +525,7 @@ class YandexDiskMenu:
             if not any(os.path.exists(p) for p in [ya_disk_path, stream_path, target_path]):
                 return new_filename
                 
-            index += 1
-    
-    def show_version(self) -> None:
-        """Display version information"""
-        message = f"<b>Yandex Disk Menu - Python Version {self.VERSION}</b><br/>\nKDE Dolphin integration for Yandex Disk sharing"
-        self.show_notification(message, self.TIMEOUT_MEDIUM, 'info')
-        self.logger.info(f"Version {self.VERSION} displayed")
+            index += self.INCREMENT_STEP
     
     def _parse_file_info(self, file_path: str) -> Tuple[str, str, str, bool]:
         """Parse file path information and determine if file is outside ya_disk"""
@@ -529,9 +561,9 @@ class YandexDiskMenu:
             file_name_part = file_path_obj.stem
             ext_part = file_path_obj.suffix
         
-        index = 0
+        index = self.DEFAULT_INDEX
         while True:
-            index += 1
+            index += self.INCREMENT_STEP
             new_file_name = f"{file_name_part}_{index}{ext_part}"
             new_stream_path = f"{self.stream_dir}/{new_file_name}"
             new_ya_disk_path = f"{self.ya_disk}/{new_file_name}"
@@ -641,9 +673,6 @@ def _execute_command(yd_menu: YandexDiskMenu, command_type: str, src_file_path: 
     elif command_type == 'FileMoveToStream':
         _handle_file_move_to_stream_command(yd_menu, src_file_path)
         
-    elif command_type == 'ShowVersion':
-        yd_menu.show_version()
-        
     else:
         _handle_unknown_command(yd_menu, command_type, c_param)
 
@@ -663,7 +692,7 @@ def _handle_clipboard_publish_command(yd_menu: YandexDiskMenu, command_type: str
     """Handle clipboard publish commands"""
     clip_dest_path = yd_menu.get_clipboard_content()
     if not clip_dest_path:
-        sys.exit(1)
+        sys.exit(yd_menu.EXIT_CODE_ERROR)
         
     sync_status = yd_menu.sync_yandex_disk()
     yd_menu.show_notification(f"Clipboard flushed to stream:\n<b>{clip_dest_path}</b>\n{sync_status}", 
@@ -693,7 +722,7 @@ def _handle_unpublish_all_command(yd_menu: YandexDiskMenu, src_file_path: str, f
     else:
         result = yd_menu.unpublish_copies(file_dir, src_file_path, file_name)
     
-    timeout = 15 if 'error' in result.lower() else yd_menu.TIMEOUT_MEDIUM
+    timeout = yd_menu.TIMEOUT_ERROR if 'error' in result.lower() else yd_menu.TIMEOUT_MEDIUM
     icon_type = 'error' if 'error' in result.lower() else 'info'
     yd_menu.show_notification(f"Files unpublished:\n{result}", timeout, icon_type)
 
@@ -702,7 +731,7 @@ def _handle_clipboard_to_stream_command(yd_menu: YandexDiskMenu) -> None:
     """Handle clipboard to stream command"""
     clip_dest_path = yd_menu.get_clipboard_content()
     if not clip_dest_path:
-        sys.exit(1)
+        sys.exit(yd_menu.EXIT_CODE_ERROR)
         
     sync_status = yd_menu.sync_yandex_disk()
     yd_menu.show_notification(f"Clipboard flushed to stream:\n<b>{clip_dest_path}</b>\n{sync_status}", 
@@ -727,8 +756,8 @@ def _handle_file_move_to_stream_command(yd_menu: YandexDiskMenu, src_file_path: 
 
 def _handle_unknown_command(yd_menu: YandexDiskMenu, command_type: str, c_param: str) -> None:
     """Handle unknown command"""
-    work_path = f"{os.path.expanduser('~')}/.local/share/kservices5/ServiceMenus"
-    yd_menu.show_notification(f"<b>Unknown action {command_type}</b>.\n\nCheck <a href='file://{work_path}/{c_param}'>{work_path}/{c_param}</a> for available actions.", 15)
+    work_path = f"{os.path.expanduser('~')}/{yd_menu.KDE_SERVICE_MENU_PATH}"
+    yd_menu.show_notification(f"<b>Unknown action {command_type}</b>.\n\nCheck <a href='file://{work_path}/{c_param}'>{work_path}/{c_param}</a> for available actions.", yd_menu.TIMEOUT_ERROR)
     print(f"Unknown action: {command_type}")
 
 
