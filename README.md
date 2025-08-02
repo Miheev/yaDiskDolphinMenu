@@ -1,4 +1,12 @@
-# yaDiskDolphinMenu
+# Yandex Disk Dolphin Menu
+
+**Documentation:**
+- [Python Version README](doc/README_Python.md)
+- [Migration Notes](doc/MIGRATION_SUMMARY.md)
+- [Usage Guide](doc/USAGE_GUIDE.md)
+
+> **⚠️ Note:**
+> The Bash version (`setup.sh`, `ydmenu.sh`) is no longer supported. New features (including `.env` support, advanced logging, and conflict resolution) are only available in the Python version (`setup.py`, `ydmenu.py`).
 ### Yandex Disk integration for KDE Dolphin sub menu: use yandex cloud directory for sharing clipboard content and files between PC, mobile, people, etc..
 
 Inspired by [yandex disk indicator](https://github.com/slytomcat/yandex-disk-indicator/wiki/Yandex-disk-indicator) context menu options
