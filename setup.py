@@ -266,12 +266,9 @@ class YandexDiskSetup:
                 script_link.symlink_to(script_source)
                 self.print_status(f"Created symlink: {script_link} -> {script_source}")
         
-        # Ensure the ydmenu-py-env wrapper script exists and is executable
+        # Ensure the ydmenu-py-env wrapper script exists, it should be already executable, it is done in make install phase
         python_wrapper_source = self.script_dir / self.PYTHON_WRAPPER_NAME
-        if python_wrapper_source.exists():
-            python_wrapper_source.chmod(self.FILE_PERMISSIONS)
-            self.print_status(f"Made executable: {python_wrapper_source}")
-        else:
+        if not python_wrapper_source.exists():
             self.print_status(f"Warning: {python_wrapper_source} not found")
             
         # Create symlink in user's ~/bin
