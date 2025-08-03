@@ -2,6 +2,7 @@
 
 **Documentation:**
 - [Python Version README](doc/README_Python.md)
+- [Desktop Context Limitations](doc/DESKTOP_CONTEXT_LIMITATIONS.md)
 - [Migration Notes](doc/MIGRATION_SUMMARY.md)
 - [Usage Guide](doc/USAGE_GUIDE.md)
 
