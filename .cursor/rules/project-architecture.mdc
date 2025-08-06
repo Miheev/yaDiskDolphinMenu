@@ -12,13 +12,13 @@ User opens Dolphin → right-clicks file (alternative flow: right click on direc
 
 ## Dual Implementation Structure
 
-### Shell Version (Legacy, but maintained)
+### Shell Version (Deprecated)
 - **Main Logic**: [ydmenu.sh](mdc:ydmenu.sh) - Core functionality implementation
 - **Setup**: [setup.sh](mdc:setup.sh) - Installation and configuration  
 - **KDE Integration**: [ydpublish.desktop](mdc:ydpublish.desktop) - Dolphin context menu definition
 - **Menu Label**: "YaDisk" (shell version)
 
-### Python Version (Modern, preferred)
+### Python Version (Recommended, actively developed)
 - **Main Logic**: [ydmenu.py](mdc:ydmenu.py) - Enhanced Python implementation with improved error handling
 - **Setup**: [setup.py](mdc:setup.py) - Python-specific installation with virtual environment
 - **KDE Integration**: [ydpublish-python.desktop](mdc:ydpublish-python.desktop) - Python version menu generated via [setup.py](mdc:setup.py) from template [ydpublish-python.desktop.template](mdc:ydpublish-python.desktop.template)

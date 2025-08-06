@@ -8,10 +8,11 @@ description: Development workflow and best practices for yaDiskDolphinMenu
 ## Code Organization Principles
 
 ### Dual Implementation Support
-- **Shell Version**: [ydmenu.sh](mdc:ydmenu.sh), [setup.sh](mdc:setup.sh), [ydpublish.desktop](mdc:ydpublish.desktop) 
-- **Python Version**: [ydmenu.py](mdc:ydmenu.py), [setup.py](mdc:setup.py), [ydpublish-python.desktop](mdc:ydpublish-python.desktop), [ydmenu-py-env](mdc:ydmenu-py-env)
+- **Shell Version (Deprecated)**: [ydmenu.sh](mdc:ydmenu.sh), [setup.sh](mdc:setup.sh), [ydpublish.desktop](mdc:ydpublish.desktop) 
+- **Python Version (Recommended)**: [ydmenu.py](mdc:ydmenu.py), [setup.py](mdc:setup.py), [ydpublish-python.desktop](mdc:ydpublish-python.desktop), [ydmenu-py-env](mdc:ydmenu-py-env)
 - **Separation of Concerns**: Each setup script handles only its own version's files
 - **Shared Configuration**: Both versions use same environment variables and directory structure
+- **Focus on Python**: New development and optimizations focus on Python version only
 
 ### File Modification Guidelines
 
@@ -21,6 +22,8 @@ description: Development workflow and best practices for yaDiskDolphinMenu
 - Follow comprehensive error handling patterns
 - Mock external dependencies in tests
 - Update [test_ydmenu.py](mdc:test_ydmenu.py) or [test_setup.py](mdc:test_setup.py) as needed
+- Use Constants class for all hardcoded values
+- Focus on clean, maintainable architecture
 
 #### Shell Scripts (`*.sh`)
 - Maintain compatibility with existing bash patterns

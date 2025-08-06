@@ -26,13 +26,12 @@ except ImportError:
 class Constants:
     """Centralized constants for the YaDisk menu application"""
     
-    # Service Menu Files
-    SERVICE_MENU_FILES = ('ydpublish-python.desktop')
+    # Service Menu Files (Python version only, shell version deprecated)
+    SERVICE_MENU_FILES = ('ydpublish-python.desktop',)
     
     @staticmethod
-    def get_service_menu_full_paths():
-        """Get full paths where KDE service menu files are installed"""
-        # home_dir = os.path.expanduser('~')
+    def get_service_menu_filenames():
+        """Get filenames of KDE service menu files to filter out"""
         return [
             "ydpublish-python.desktop"
         ]
@@ -649,10 +648,10 @@ def main_impl(command_type: str, file_paths: tuple = (), verbose: bool = False):
     # - Empty paths can come from %k/%c parameters when they're not set
     # - KDE service menu files come from %k parameter and must be excluded to prevent
     #   processing the menu definition file as a regular file
-    # - Filter by exact full paths where our service menu files are installed (much more precise than filename matching)
-    service_menu_paths = Constants.get_service_menu_full_paths()
+    # - Filter by filename ending (Python version only, since shell version is deprecated)
+    service_menu_filenames = Constants.get_service_menu_filenames()
     filtered_file_paths = tuple(fp for fp in file_paths 
-                               if fp and not any(fp.endswith(menu_file) for menu_file in service_menu_paths))
+                               if fp and not any(fp.endswith(menu_file) for menu_file in service_menu_filenames))
     
     # Use filtered file paths for processing
     file_paths = filtered_file_paths

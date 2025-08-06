@@ -92,6 +92,12 @@ The main script (`ydmenu.sh` for bash, `ydmenu.py` for Python) handles:
 - **Robust conflict resolution**: Rollback rename algorithm prevents yandex-disk publish failures
 - **Separate log files**: Uses `yaMedia-python.log` to avoid conflicts with bash version logs
 
+### Code Architecture Improvements (v1.1+)
+- **Centralized Constants**: All hardcoded values moved to a dedicated `Constants` class for better maintainability
+- **Optimized Filtering**: Service menu file filtering focuses only on Python version (`ydpublish-python.desktop`) since shell version is deprecated
+- **Better Organization**: Clear separation between constants, core logic, and command processing
+- **Enhanced Readability**: Structured code with proper categorization and documentation
+
 ## Configuration Variables
 
 ### Environment Variables File (.env)
