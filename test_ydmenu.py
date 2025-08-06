@@ -23,7 +23,7 @@ try:
 except ImportError:
     DOTENV_AVAILABLE = False
 
-from ydmenu import YandexDiskMenu
+from ydmenu import YandexDiskMenu, Constants
 
 
 class TestYandexDiskMenu(unittest.TestCase):
@@ -148,7 +148,7 @@ class TestYandexDiskMenu(unittest.TestCase):
         mock_run.return_value = None
         
         with patch.object(self.yd_menu.logger, 'info') as mock_info:
-            self.yd_menu.show_notification("Test notification", self.yd_menu.TIMEOUT_SHORT, 'info')
+            self.yd_menu.show_notification("Test notification", Constants.TIMEOUT_SHORT, 'info')
             
             # Check that kdialog was called
             mock_run.assert_called_once()
@@ -180,7 +180,7 @@ class TestYandexDiskMenu(unittest.TestCase):
              patch.object(self.yd_menu, 'show_notification') as mock_notify:
             self.yd_menu.wait_for_ready()
             
-            mock_run.assert_called_once_with(['yandex-disk', 'status'], timeout=self.yd_menu.TIMEOUT_MEDIUM, check=False)
+            mock_run.assert_called_once_with(['yandex-disk', 'status'], timeout=Constants.TIMEOUT_MEDIUM, check=False)
             mock_notify.assert_not_called()
     
     @patch('time.sleep')  
@@ -366,7 +366,7 @@ class TestYandexDiskMenu(unittest.TestCase):
     
     def test_sync_yandex_disk_error(self):
         """Test Yandex Disk sync error"""
-        with patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(self.yd_menu.EXIT_CODE_ERROR, 'yandex-disk')):
+        with patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(Constants.EXIT_CODE_ERROR, 'yandex-disk')):
             result = self.yd_menu.sync_yandex_disk()
             self.assertIn("Sync error", result)
     
@@ -425,7 +425,7 @@ class TestYandexDiskMenu(unittest.TestCase):
     
     def test_run_command_failure(self):
         """Test _run_command method with command failure"""
-        error = subprocess.CalledProcessError(self.yd_menu.EXIT_CODE_ERROR, ['test', 'command'], 'stdout', 'stderr')
+        error = subprocess.CalledProcessError(Constants.EXIT_CODE_ERROR, ['test', 'command'], 'stdout', 'stderr')
         
         with patch('subprocess.run', side_effect=error) as mock_run, \
              patch.object(self.yd_menu.logger, 'debug') as mock_debug, \
@@ -436,7 +436,7 @@ class TestYandexDiskMenu(unittest.TestCase):
             
             # Should log debug and error information
             mock_debug.assert_called_with("Running command: test command")
-            mock_error.assert_any_call(f"Command failed: test command, Return code: {self.yd_menu.EXIT_CODE_ERROR}")
+            mock_error.assert_any_call(f"Command failed: test command, Return code: {Constants.EXIT_CODE_ERROR}")
             mock_error.assert_any_call("Command stdout: stdout")
             mock_error.assert_any_call("Command stderr: stderr")
     
