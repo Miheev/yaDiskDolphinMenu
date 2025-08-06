@@ -1,0 +1,121 @@
+---
+globs: *.py,*.sh,*.desktop,Makefile,*.md
+description: Development workflow and best practices for yaDiskDolphinMenu
+---
+
+# Development Workflow
+
+## Code Organization Principles
+
+### Dual Implementation Support
+- **Shell Version**: [ydmenu.sh](mdc:ydmenu.sh), [setup.sh](mdc:setup.sh), [ydpublish.desktop](mdc:ydpublish.desktop) 
+- **Python Version**: [ydmenu.py](mdc:ydmenu.py), [setup.py](mdc:setup.py), [ydpublish-python.desktop](mdc:ydpublish-python.desktop), [ydmenu-py-env](mdc:ydmenu-py-env)
+- **Separation of Concerns**: Each setup script handles only its own version's files
+- **Shared Configuration**: Both versions use same environment variables and directory structure
+
+### File Modification Guidelines
+
+#### Python Files (`*.py`)
+- Always run tests after changes: `make test`
+- Use type hints for better reliability
+- Follow comprehensive error handling patterns
+- Mock external dependencies in tests
+- Update [test_ydmenu.py](mdc:test_ydmenu.py) or [test_setup.py](mdc:test_setup.py) as needed
+
+#### Shell Scripts (`*.sh`)
+- Maintain compatibility with existing bash patterns
+- Update corresponding tests if test coverage exists
+- Preserve original functionality while making improvements
+
+#### Desktop Files (`*.desktop`)
+- Template generation for Python version uses [ydpublish-python.desktop.template](mdc:ydpublish-python.desktop.template)
+- Version information auto-generated from `.env` file
+- Maintain separate files for shell vs Python versions
+
+#### Documentation (`*.md`)
+- Update relevant docs in [doc/](mdc:doc/) directory and [README.md](mdc:README.md)
+- Exception: [doc/MIGRATION_SUMMARY.md](mdc:doc/MIGRATION_SUMMARY.md) is complete, don't modify
+- Keep [CLAUDE.md](mdc:CLAUDE.md) updated with technical changes
+
+## Development Commands
+
+### Setup Development Environment
+```bash
+make install     # Install Python dependencies and check system
+python setup.py (alternativly make configure)  # Configure Python version (requires sudo)
+```
+
+### Development Workflow
+```bash
+make test        # Run unit tests
+make lint        # Code quality checks  
+make format      # Auto-format Python code
+make status      # Check installation status
+```
+
+### Testing New Features
+```bash
+# Test Python version directly
+./ydmenu.py --help
+./ydmenu.py --verbose PublishToYandexCom test.txt
+
+# Test through wrapper (production path)
+ydmenu-py-env --help
+ydmenu-py-env ClipboardPublish
+```
+
+## Code Quality Standards
+
+### Python Code
+- Use type hints: `def function(param: str) -> bool:`
+- Comprehensive error handling with logging
+- Mock external dependencies in tests
+- Follow existing class structure in [ydmenu.py](mdc:ydmenu.py)
+
+### Shell Code  
+- Maintain existing bash patterns
+- Preserve error handling and logging
+- Keep compatibility with original functionality
+
+### Testing
+- **18+ test cases** for main functionality in [test_ydmenu.py](mdc:test_ydmenu.py)
+- **16 test cases** for setup functionality in [test_setup.py](mdc:test_setup.py)
+- Mock subprocess calls, file operations, and external dependencies
+- Test both success and error conditions
+
+## Key Dependencies
+
+### System Requirements
+- KDE/Dolphin file manager
+- yandex-disk daemon
+- kdialog, xclip utilities
+
+### Python Dependencies (managed via [requirements.txt](mdc:requirements.txt))
+- click >= 8.0.0 (CLI framework)
+- pyclip >= 0.7.0 (clipboard operations)  
+- python-dotenv >= 1.0.0 (environment management)
+
+## Error Handling Patterns
+
+### Python Version
+- Comprehensive logging to `$YA_DISK_ROOT/yaMedia-python.log`
+- KDE notifications via kdialog
+- Graceful fallbacks (pyclip → xclip)
+- Rollback rename algorithm for conflict resolution
+
+### Shell Version
+- Basic logging to `$YA_DISK_ROOT/yaMedia.log`
+- Error notifications via kdialog
+- Timeout handling for yandex-disk service readiness
+
+## Integration Points
+
+### KDE Service Menus
+- [ydpublish.desktop](mdc:ydpublish.desktop) for shell version
+- [ydpublish-python.desktop](mdc:ydpublish-python.desktop) for Python version
+- Both appear in Dolphin right-click context menu
+
+### Virtual Environment
+- [ydmenu-py-env](mdc:ydmenu-py-env) wrapper handles venv activation
+- Automatic detection of project directory via symlink resolution
+- Error messages if venv missing or setup incomplete

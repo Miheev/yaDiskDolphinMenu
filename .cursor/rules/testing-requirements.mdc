@@ -1,0 +1,100 @@
+---
+alwaysApply: true
+description: Testing requirements for yaDiskDolphinMenu - ensure tests are updated, run, and pass after code changes
+---
+
+# Testing Requirements
+
+**CRITICAL**: After every task that involves code changes, unit tests MUST be updated, fixed, created for new functionality, run, and made green. Related documentation must also be updated.
+
+## Test Files Structure
+- **[test_ydmenu.py](mdc:test_ydmenu.py)**: Main functionality tests (18+ test cases)
+- **[test_setup.py](mdc:test_setup.py)**: Setup and configuration tests (16 test cases)
+
+## Testing Workflow (MANDATORY)
+
+### 1. After Code Changes
+```bash
+# Run tests to see current status
+make test
+
+# If tests fail due to code changes:
+# - Update test mocks and expectations
+# - Add new test cases for new functionality  
+# - Fix broken tests due to refactoring
+```
+
+### 2. For New Features
+```bash
+# Add comprehensive test coverage:
+# - Unit tests for new functions/methods
+# - Integration tests for new workflows
+# - Mock external dependencies (subprocess calls, file operations)
+# - Test error conditions and edge cases
+```
+
+### 3. Test Requirements
+- **Coverage**: All new functions/methods must have tests
+- **Mocking**: Mock external calls (yandex-disk, kdialog, xclip, file system)
+- **Error Handling**: Test exception paths and error conditions
+- **Integration**: Test end-to-end workflows
+
+### 4. Running Tests
+```bash
+make test           # Run all tests
+make test-coverage  # Run with coverage report
+make lint          # Code quality checks
+```
+
+### 5. Test Success Criteria
+- ✅ All tests pass (green)
+- ✅ No linting errors
+- ✅ Coverage maintained or improved
+- ✅ New functionality has corresponding tests
+
+## Documentation Updates (MANDATORY)
+
+After code changes, update relevant documentation:
+- **[CLAUDE.md](mdc:CLAUDE.md)**: Project overview and technical details
+- **[README.md](mdc:README.md)**: Main project documentation  
+- **[doc/README_Python.md](mdc:doc/README_Python.md)**: Python version specifics
+- **[doc/USAGE_GUIDE.md](mdc:doc/USAGE_GUIDE.md)**: Usage instructions
+- **Code comments**: Inline documentation for new/changed functions
+
+## Exception: Migration Documentation
+- **[doc/MIGRATION_SUMMARY.md](mdc:doc/MIGRATION_SUMMARY.md)**: This is COMPLETE and should NOT be updated unless specifically requested
+
+## Test Patterns Used in Project
+
+### Mocking External Dependencies
+```python
+@patch("subprocess.run")
+@patch.object(yd_menu, "show_notification")
+def test_function(self, mock_notify, mock_subprocess):
+    # Test implementation
+```
+
+### File Operation Testing
+```python
+with tempfile.TemporaryDirectory() as temp_dir:
+    # Create test files and directories
+    # Run functionality
+    # Assert results
+```
+
+### Error Condition Testing
+```python
+# Test error handling and recovery
+mock_subprocess.side_effect = subprocess.CalledProcessError(1, "cmd")
+# Verify appropriate error handling
+```
+
+## Pre-commit Checklist
+- [ ] Tests updated for code changes
+- [ ] New tests added for new features
+- [ ] All tests pass (`make test`)
+- [ ] No linting errors (`make lint`)
+- [ ] Documentation updated
+- [ ] Code formatted (`make format`)
+
+**Remember**: The test suite is comprehensive and covers both shell and Python versions. Maintain this quality standard for all changes.

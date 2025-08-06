@@ -1,0 +1,58 @@
+---
+alwaysApply: true
+description: Project structure and architecture understanding for yaDiskDolphinMenu
+---
+
+# yaDiskDolphinMenu Project Architecture
+
+This is a **Yandex Disk integration for KDE Dolphin** that provides context menu actions for sharing files via Yandex cloud storage.
+
+## Architecture Flow
+User opens Dolphin → right-clicks file (alternative flow: right click on directory, or on empty space inside dolphin's currently open directory) → selects YaDisk submenu option → if Python version: [ydmenu-py-env](mdc:ydmenu-py-env) sets up environment and passes params to [ydmenu.py](mdc:ydmenu.py) where action is handled. 
+
+## Dual Implementation Structure
+
+### Shell Version (Legacy, but maintained)
+- **Main Logic**: [ydmenu.sh](mdc:ydmenu.sh) - Core functionality implementation
+- **Setup**: [setup.sh](mdc:setup.sh) - Installation and configuration  
+- **KDE Integration**: [ydpublish.desktop](mdc:ydpublish.desktop) - Dolphin context menu definition
+- **Menu Label**: "YaDisk" (shell version)
+
+### Python Version (Modern, preferred)
+- **Main Logic**: [ydmenu.py](mdc:ydmenu.py) - Enhanced Python implementation with improved error handling
+- **Setup**: [setup.py](mdc:setup.py) - Python-specific installation with virtual environment
+- **KDE Integration**: [ydpublish-python.desktop](mdc:ydpublish-python.desktop) - Python version menu generated via [setup.py](mdc:setup.py) from template [ydpublish-python.desktop.template](mdc:ydpublish-python.desktop.template)
+- **Environment Wrapper**: [ydmenu-py-env](mdc:ydmenu-py-env) - Activates venv and calls Python script
+- **Menu Label**: "YaDisk (Python)" 
+- **Dependencies**: [requirements.txt](mdc:requirements.txt) - click, pyclip, python-dotenv (managed in virtual environment)
+- **Build System**: [Makefile](mdc:Makefile) - Development and deployment automation
+
+## Key File Structure
+```
+$YA_DISK_ROOT/
+├── yaMedia/           # Main Yandex disk directory
+│   └── Media/         # Stream directory (inbox for file operations)
+├── yaMedia.log        # Shell version operations log
+└── yaMedia-python.log # Python version operations log
+```
+
+## Core Functionality
+- **Publishing**: Create public links (.com/.ru domains)
+- **Clipboard Operations**: Save/publish clipboard content (text and images)  
+- **File Management**: Copy/move files to stream directory
+- **Unpublishing**: Remove public links (single file or all copies)
+- **Auto-renaming**: Handle file conflicts with `_number` suffix
+- **Error Handling**: Wait for yandex-disk readiness, show KDE notifications
+
+## Testing Structure
+- **Python Tests**: [test_ydmenu.py](mdc:test_ydmenu.py) - Comprehensive unit tests for main functionality
+- **Setup Tests**: [test_setup.py](mdc:test_setup.py) - Tests for setup and configuration
+- **Test Runner**: Use `make test` for Python tests
+
+## Environment Variables
+- **YA_DISK_ROOT**: Parent directory of Yandex disk (set by either setup script)
+- **Derived paths**: yaMedia, streamDir, logFilePath computed from YA_DISK_ROOT
+
+## Dependencies
+- **System**: KDE/Dolphin, yandex-disk daemon, kdialog, xclip
+- **Python**: Virtual environment with click, pyclip, python-dotenv
