@@ -7,9 +7,12 @@ A modern Python rewrite of the Yandex Disk integration for KDE Dolphin file mana
 - **File Publishing**: Create public links for files (both .com and .ru domains)
 - **Clipboard Integration**: Save and publish clipboard content (text and images)
 - **File Management**: Copy/move files to Yandex stream directory
-- **Batch Operations**: Unpublish multiple file copies at once
-- **Error Handling**: Robust error handling with user notifications
+- **Multiple Item Processing**: Process multiple files/directories with intelligent algorithms:
+  - **One-by-One**: Publish, save, and remove operations with progress notifications and link collection
+  - **All-at-Once**: Batch file copy/move operations for maximum efficiency
+- **Enhanced Error Handling**: Continue processing remaining items if some fail, with detailed error reporting
 - **Auto-renaming**: Automatic duplicate file handling with `_number` suffix pattern
+- **Advanced Logging**: Input parameter logging, file details in verbose mode, and comprehensive operation tracking
 
 ## Requirements
 
@@ -148,10 +151,12 @@ Icons are expected at `/usr/share/yd-tools/icons/`:
 - **`test_*.py`** - Comprehensive unit tests for Python code
 
 ### Key Improvements Over Shell Version
-- **Better Error Handling** - Comprehensive exception handling with proper logging
+- **Multiple Item Processing** - Process multiple files/directories with intelligent algorithms optimized for different operation types
+- **Enhanced Parameter Logging** - Comprehensive logging of input parameters, file details, and processing steps
+- **Better Error Handling** - Comprehensive exception handling with proper logging, continues processing remaining items on failures
 - **Type Safety** - Python type hints for better code reliability
 - **Modular Design** - Object-oriented structure for better maintainability
-- **Testing** - Full unit test coverage with mocking
+- **Testing** - Full unit test coverage with mocking (52+ test cases)
 - **Configuration** - Flexible command-line configuration options
 - **Documentation** - Comprehensive inline documentation
 

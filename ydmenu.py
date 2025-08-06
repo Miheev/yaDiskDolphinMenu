@@ -595,34 +595,332 @@ class YandexDiskMenu:
 
 
 def main_impl(command_type: str, file_paths: tuple = (), k_param: str = '', c_param: str = '', verbose: bool = False):
-    """Yandex Disk menu actions for KDE Dolphin (now supports multiple files/dirs)"""
+    """Yandex Disk menu actions for KDE Dolphin (now supports multiple files/dirs with different processing algorithms)"""
     yd_menu = YandexDiskMenu(verbose=verbose)
-    yd_menu.log_message(f"Start - Command: {command_type}")
+    
+    # Filter out .desktop files (KDE %k parameter can pass desktop file name)
+    filtered_file_paths = tuple(fp for fp in file_paths if not fp.endswith('.desktop'))
+    
+    # Extract k_param and c_param for backward compatibility if not provided (legacy support)
+    if not k_param and len(filtered_file_paths) > 0:
+        k_param = filtered_file_paths[0]
+    if not c_param and len(filtered_file_paths) > 1:
+        c_param = filtered_file_paths[1]
+    
+    # Use filtered file paths for processing
+    file_paths = filtered_file_paths
+    
+    # Log input parameters with INFO level
+    yd_menu.logger.info(f"=== YDMENU INPUT PARAMETERS ===")
+    yd_menu.logger.info(f"command_type: '{command_type}'")
+    yd_menu.logger.info(f"file_paths: {file_paths}")
+    yd_menu.logger.info(f"k_param: '{k_param}'")
+    yd_menu.logger.info(f"c_param: '{c_param}'")
+    yd_menu.logger.info(f"verbose: {verbose}")
+    yd_menu.logger.info(f"file_paths count: {len(file_paths)}")
+    yd_menu.logger.info(f"file_paths types: {[type(fp).__name__ for fp in file_paths]}")
+    
+    # Log file path details if any files are provided (verbose mode only)
+    if file_paths and verbose:
+        yd_menu.logger.debug("=== FILE PATH DETAILS ===")
+        for i, file_path in enumerate(file_paths):
+            yd_menu.logger.debug(f"file_path[{i}]: '{file_path}'")
+            if os.path.exists(file_path):
+                yd_menu.logger.debug(f"  - exists: True")
+                yd_menu.logger.debug(f"  - is_file: {os.path.isfile(file_path)}")
+                yd_menu.logger.debug(f"  - is_dir: {os.path.isdir(file_path)}")
+                yd_menu.logger.debug(f"  - size: {os.path.getsize(file_path) if os.path.isfile(file_path) else 'N/A'}")
+            else:
+                yd_menu.logger.debug(f"  - exists: False")
+    
+    yd_menu.logger.info(f"Start - Command: {command_type}")
     yd_menu.wait_for_ready()
 
     if not file_paths:
         file_paths = ()
 
+    # Handle clipboard commands (no file processing needed)
+    if command_type in CLIPBOARD_COMMANDS:
+        _execute_command(yd_menu, command_type, '', '', '', False, '', c_param)
+        yd_menu.logger.info("Done")
+        return
+
+    # Handle all-at-once commands (batch processing)
+    if command_type in ALL_AT_ONCE_COMMANDS:
+        _handle_batch_command(yd_menu, command_type, file_paths, c_param)
+        yd_menu.logger.info("Done")
+        return
+
+    # Handle one-by-one commands (individual processing)
+    if command_type in ONE_BY_ONE_COMMANDS:
+        _handle_individual_commands(yd_menu, command_type, file_paths, c_param)
+        yd_menu.logger.info("Done")
+        return
+
+    # Handle unknown commands
+    _handle_unknown_command(yd_menu, command_type, c_param)
+    yd_menu.logger.info("Done")
+
+
+def _handle_individual_commands(yd_menu: YandexDiskMenu, command_type: str, file_paths: tuple, c_param: str) -> None:
+    """Handle commands that process items one by one (publish, save, remove/unpublish actions)"""
+    yd_menu.logger.debug(f"Individual processing: {command_type}, {len(file_paths)} files")
+
     errors = []
+    processed_count = 0
+    collected_links = []  # For collecting publish links
+    
     for file_path in file_paths:
         try:
+            yd_menu.logger.debug(f"Processing: {file_path}")
             src_file_path, file_name, file_dir, is_outside_file = yd_menu._parse_file_info(file_path)
+            
+            # Log file information using helper method
+            _log_file_info(yd_menu, file_path, src_file_path, file_name, file_dir, is_outside_file)
+            
             original_src_file_path = src_file_path
             src_file_path, file_name, is_file_name_changed = yd_menu._rename_file_if_needed(
                 src_file_path, file_name, file_dir, is_outside_file, command_type)
+            
+            if is_file_name_changed:
+                yd_menu.logger.debug(f"Renamed: {original_src_file_path} -> {src_file_path}")
+            
             rename_back = yd_menu._create_rename_back_function(
                 is_file_name_changed, src_file_path, original_src_file_path)
             ya_disk_file_path = f"{yd_menu.ya_disk}/{file_name}"
-            _execute_command(yd_menu, command_type, src_file_path, file_name, file_dir, 
-                            is_outside_file, ya_disk_file_path, c_param)
-            #should_rename_back = not (is_outside_file and command_type.startswith('PublishToYandex'))
+            
+            # For publish commands, collect the link instead of copying immediately
+            if command_type in ('PublishToYandexCom', 'PublishToYandex'):
+                link = _handle_publish_command_collect_link(yd_menu, command_type, src_file_path, is_outside_file, ya_disk_file_path)
+                if link:
+                    collected_links.append(link)
+                    yd_menu.logger.info(f"Published: {file_path}")
+            else:
+                _execute_command(yd_menu, command_type, src_file_path, file_name, file_dir, 
+                                is_outside_file, ya_disk_file_path, c_param)
+            
             rename_back()
+            processed_count += 1
+            
         except Exception as e:
             errors.append((file_path, str(e)))
             yd_menu.logger.error(f"Error processing {file_path}: {e}")
+    
+    # Copy all collected links to clipboard at once
+    if collected_links:
+        all_links = '\n'.join(collected_links)
+        yd_menu._copy_to_clipboard(all_links)
+        # Note: show_notification already logs, so no duplicate logging needed
+        yd_menu.show_notification(f"Published {len(collected_links)} items. All links copied to clipboard.", yd_menu.TIMEOUT_SHORT)
+    
     if errors:
         yd_menu.show_error_and_exit(f"Errors occurred:\n" + '\n'.join(f"{fp}: {err}" for fp, err in errors))
-    yd_menu.log_message("Done")
+    
+    if processed_count > 1 and not collected_links:
+        yd_menu.show_notification(f"Processed {processed_count} items with {command_type}", yd_menu.TIMEOUT_SHORT)
+    
+    yd_menu.logger.info(f"Individual processing completed: {processed_count} processed, {len(collected_links)} links, {len(errors)} errors")
+
+
+def _handle_publish_command_collect_link(yd_menu: YandexDiskMenu, command_type: str, src_file_path: str, 
+                                       is_outside_file: bool, ya_disk_file_path: str) -> str:
+    """Handle publish command and return the generated link instead of copying to clipboard"""
+    use_com = command_type == 'PublishToYandexCom'
+    
+    # Store original clipboard content
+    original_clipboard = None
+    try:
+        original_clipboard = yd_menu.clipboard.get_text()
+    except:
+        pass
+    
+    # Publish the file
+    yd_menu.publish_file(src_file_path, use_com)
+    
+    # Get the published link from clipboard
+    published_link = None
+    try:
+        published_link = yd_menu.clipboard.get_text()
+    except:
+        pass
+    
+    # Restore original clipboard content
+    if original_clipboard:
+        yd_menu._copy_to_clipboard(original_clipboard)
+    
+    # For outside files or directories, move to stream directory after publishing
+    if is_outside_file:
+        shutil.move(ya_disk_file_path, yd_menu.stream_dir)
+    
+    return published_link
+
+
+def _handle_batch_command(yd_menu: YandexDiskMenu, command_type: str, file_paths: tuple, c_param: str) -> None:
+    """Handle commands that process all items at once (file copy/move actions)"""
+    yd_menu.logger.debug(f"Batch processing: {command_type}, {len(file_paths)} files")
+    
+    if not file_paths:
+        yd_menu.show_error_and_exit("No files selected for batch operation")
+        return
+    
+    errors = []
+    processed_items = []
+    is_copy_operation = command_type == 'FileAddToStream'
+    
+    # Process all files/directories with rename logic
+    for file_path in file_paths:
+        try:
+            yd_menu.logger.debug(f"Processing: {file_path}")
+            src_file_path, file_name, file_dir, is_outside_file = yd_menu._parse_file_info(file_path)
+            
+            # Log file information using helper method
+            _log_file_info(yd_menu, file_path, src_file_path, file_name, file_dir, is_outside_file)
+            
+            original_src_file_path = src_file_path
+            
+            # Apply rename logic for both copy and move operations to avoid conflicts
+            src_file_path, file_name, is_file_name_changed = yd_menu._rename_file_if_needed(
+                src_file_path, file_name, file_dir, is_outside_file, command_type)
+            
+            if is_file_name_changed:
+                yd_menu.logger.debug(f"Renamed: {original_src_file_path} -> {src_file_path}")
+            
+            if is_copy_operation:
+                # For copy operations, create rename back function
+                rename_back = yd_menu._create_rename_back_function(
+                    is_file_name_changed, src_file_path, original_src_file_path)
+                processed_items.append((src_file_path, file_name, rename_back))
+            else:
+                # For move operations, no rename back needed since file will be moved from original location
+                processed_items.append((src_file_path, file_name, lambda: None))
+                
+        except Exception as e:
+            errors.append((file_path, str(e)))
+            yd_menu.logger.error(f"Error parsing {file_path}: {e}")
+    
+    if errors:
+        yd_menu.show_error_and_exit(f"Errors occurred:\n" + '\n'.join(f"{fp}: {err}" for fp, err in errors))
+    
+    # Execute batch operation
+    if is_copy_operation:
+        _handle_batch_add_to_stream(yd_menu, processed_items)
+    elif command_type == 'FileMoveToStream':
+        _handle_batch_move_to_stream(yd_menu, processed_items)
+    else:
+        yd_menu.show_error_and_exit(f"Unknown batch command: {command_type}")
+    
+    yd_menu.logger.debug(f"Batch processing completed: {len(processed_items)} items")
+
+
+def _handle_batch_add_to_stream(yd_menu: YandexDiskMenu, processed_items: list) -> None:
+    """Handle batch copy to stream operation"""
+    import errno
+    copied_items = []
+    errors = []
+    
+    for src_file_path, file_name, rename_back in processed_items:
+        try:
+            if os.path.isdir(src_file_path):
+                base_name = os.path.basename(src_file_path.rstrip(os.sep))
+                dest_dir = os.path.join(yd_menu.stream_dir, base_name)
+                try:
+                    shutil.copytree(src_file_path, dest_dir)
+                    copied_items.append(f"Directory: {src_file_path}")
+                except OSError as e:
+                    if e.errno == errno.ENOTDIR:
+                        shutil.copy2(src_file_path, dest_dir)
+                        copied_items.append(f"File: {src_file_path}")
+                    else:
+                        raise
+            else:
+                shutil.copy2(src_file_path, yd_menu.stream_dir)
+                copied_items.append(f"File: {src_file_path}")
+            
+            # Rename back for copy operations
+            rename_back()
+            
+        except Exception as e:
+            errors.append((src_file_path, str(e)))
+            yd_menu.logger.error(f"Error copying {src_file_path}: {e}")
+    
+    sync_status = yd_menu.sync_yandex_disk()
+    
+    if errors:
+        error_msg = f"Errors occurred:\n" + '\n'.join(f"{fp}: {err}" for fp, err in errors)
+        yd_menu.show_error_and_exit(error_msg)
+    
+    # Create notification message showing first 5 items with count of remaining
+    if len(copied_items) > 5:
+        display_items = copied_items[:5]
+        remaining_count = len(copied_items) - 5
+        display_message = '\n'.join(display_items) + f'\n... and {remaining_count} more items'
+    else:
+        display_message = '\n'.join(copied_items)
+    
+    success_msg = f"Copied {len(copied_items)} items to stream:\n{display_message}"
+    success_msg += f"\n{sync_status}"
+    
+    yd_menu.show_notification(success_msg, yd_menu.TIMEOUT_MEDIUM)
+
+
+def _handle_batch_move_to_stream(yd_menu: YandexDiskMenu, processed_items: list) -> None:
+    """Handle batch move to stream operation"""
+    import errno
+    moved_items = []
+    errors = []
+    
+    for src_file_path, file_name, rename_back in processed_items:
+        try:
+            if os.path.isdir(src_file_path):
+                base_name = os.path.basename(src_file_path.rstrip(os.sep))
+                dest_dir = os.path.join(yd_menu.stream_dir, base_name)
+                try:
+                    shutil.move(src_file_path, dest_dir)
+                    moved_items.append(f"Directory: {src_file_path}")
+                except OSError as e:
+                    if e.errno == errno.ENOTDIR:
+                        shutil.move(src_file_path, dest_dir)
+                        moved_items.append(f"File: {src_file_path}")
+                    else:
+                        raise
+            else:
+                shutil.move(src_file_path, yd_menu.stream_dir)
+                moved_items.append(f"File: {src_file_path}")
+            
+            # No rename back for move operations since file is moved
+            
+        except Exception as e:
+            errors.append((src_file_path, str(e)))
+            yd_menu.logger.error(f"Error moving {src_file_path}: {e}")
+    
+    sync_status = yd_menu.sync_yandex_disk()
+    
+    if errors:
+        error_msg = f"Errors occurred:\n" + '\n'.join(f"{fp}: {err}" for fp, err in errors)
+        yd_menu.show_error_and_exit(error_msg)
+    
+    # Create notification message showing first 5 items with count of remaining
+    if len(moved_items) > 5:
+        display_items = moved_items[:5]
+        remaining_count = len(moved_items) - 5
+        display_message = '\n'.join(display_items) + f'\n... and {remaining_count} more items'
+    else:
+        display_message = '\n'.join(moved_items)
+    
+    success_msg = f"Moved {len(moved_items)} items to stream:\n{display_message}"
+    success_msg += f"\n{sync_status}"
+    
+    yd_menu.show_notification(success_msg, yd_menu.TIMEOUT_MEDIUM)
+
+
+def _log_file_info(yd_menu: YandexDiskMenu, file_path: str, src_file_path: str, file_name: str, 
+                   file_dir: str, is_outside_file: bool) -> None:
+    """Log file information for debugging (DEBUG level only)"""
+    yd_menu.logger.debug(f"File info - path: {file_path}")
+    yd_menu.logger.debug(f"  - src_file_path: {src_file_path}")
+    yd_menu.logger.debug(f"  - file_name: {file_name}")
+    yd_menu.logger.debug(f"  - file_dir: {file_dir}")
+    yd_menu.logger.debug(f"  - is_outside_file: {is_outside_file}")
 
 
 import sys
@@ -763,6 +1061,11 @@ def _handle_unknown_command(yd_menu: YandexDiskMenu, command_type: str, c_param:
     yd_menu.show_notification(f"<b>Unknown action {command_type}</b>.\n\nCheck <a href='file://{work_path}/{c_param}'>{work_path}/{c_param}</a> for available actions.", yd_menu.TIMEOUT_ERROR)
     yd_menu.logger.warn(f"Unknown action: {command_type}")
 
+
+# Processing algorithm constants
+ONE_BY_ONE_COMMANDS = ('PublishToYandexCom', 'PublishToYandex', 'UnpublishFromYandex', 'UnpublishAllCopy')
+ALL_AT_ONCE_COMMANDS = ('FileAddToStream', 'FileMoveToStream')
+CLIPBOARD_COMMANDS = ('ClipboardPublishToCom', 'ClipboardPublish', 'ClipboardToStream')
 
 import click
 @click.command()

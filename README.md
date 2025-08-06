@@ -7,7 +7,7 @@
 - [Usage Guide](doc/USAGE_GUIDE.md)
 
 > **⚠️ Note:**
-> The Bash version (`setup.sh`, `ydmenu.sh`) is no longer supported. New features (including `.env` support, advanced logging, and conflict resolution) are only available in the Python version (`setup.py`, `ydmenu.py`).
+> The Bash version (`setup.sh`, `ydmenu.sh`) is no longer supported. New features (including `.env` support, advanced logging, conflict resolution, and **multiple item processing**) are only available in the Python version (`setup.py`, `ydmenu.py`).
 ### Yandex Disk integration for KDE Dolphin sub menu: use yandex cloud directory for sharing clipboard content and files between PC, mobile, people, etc..
 
 Inspired by [yandex disk indicator](https://github.com/slytomcat/yandex-disk-indicator/wiki/Yandex-disk-indicator) context menu options
@@ -34,7 +34,9 @@ Let's assume some directory under yandex cloud selected as **inbox** for **file 
 - Doesn't fail on overwrite: **rename automatically** instead (__%name%\_%number%.%extension% or .%extensionName%\_%number%__)
 - **Unpublish** file with its **copies** (if copies created with patterns above)
 - **Unpublish file outside** of cloud directories (instead of throwing error, unpublish its copy from the inbox directory)
-- **Log output** to parent of yandex disk root directory (__$YA_DISK_ROOT/yaMedia.log__) 
+- **Multiple item processing**: Select multiple files/directories in Dolphin for batch operations (Python version only)
+- **Enhanced error handling**: Continue processing remaining items if some fail, with detailed error logging
+- **Log output** to parent of yandex disk root directory (__$YA_DISK_ROOT/yaMedia.log__ for bash, __$YA_DISK_ROOT/yaMedia-python.log__ for Python) 
 
 **Cons**
 - EN localization supported only

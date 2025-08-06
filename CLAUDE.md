@@ -76,11 +76,19 @@ The main script (`ydmenu.sh` for bash, `ydmenu.py` for Python) handles:
 - **Conflict resolution**: Uses rollback rename algorithm to avoid yandex-disk publish conflicts
 - **Version display**: Version appears automatically in context menu (no command needed)
 
-### Python Version Enhancements (v0.5)
+### Python Version Enhancements (v1.0+)
+- **Multiple Item Processing**: Supports processing multiple files/directories with different algorithms:
+  - **One-by-One**: Publish, save, and remove/unpublish actions process each item individually with progress notifications
+  - **All-at-Once**: File copy/move operations process all items in a single batch for efficiency
+  - **Link Collection**: For publish operations, collects all generated links and copies them to clipboard once with newline separation
+- **Enhanced Parameter Logging**: 
+  - Input parameters logged at INFO level (command, file paths, counts)
+  - File path details (existence, type, size) logged at DEBUG level with `--verbose` flag
+  - Individual file processing logged at DEBUG level for detailed troubleshooting
 - **Advanced logging**: Quiet logging by default, configurable with `--verbose` flag, structured logging to separate file and console
 - **Subprocess logging**: All subprocess calls (yandex-disk, xclip) always log stderr; stdout only logged in verbose mode
 - **Improved clipboard**: Native cross-platform clipboard access via `pyclip` with `xclip` fallback for edge cases
-- **Better error handling**: Comprehensive logging of command failures with return codes and output
+- **Better error handling**: Comprehensive logging of command failures with return codes and output, continues processing remaining items on individual failures
 - **Robust conflict resolution**: Rollback rename algorithm prevents yandex-disk publish failures
 - **Separate log files**: Uses `yaMedia-python.log` to avoid conflicts with bash version logs
 
@@ -166,9 +174,14 @@ ydmenu.py ClipboardPublish
 ydmenu.py FileAddToStream /path/to/file.txt
 # Version information is now displayed in the context menu automatically
 
+# Multiple file processing
+ydmenu.py PublishToYandexCom file1.txt file2.txt file3.txt    # One-by-one with link collection
+ydmenu.py FileAddToStream dir1/ file1.txt file2.txt          # All-at-once batch processing
+
 # Verbose mode to enable detailed logging
 ydmenu.py --verbose PublishToYandexCom /path/to/file.txt
 ydmenu.py -v ClipboardPublish
+ydmenu.py --verbose FileAddToStream file1.txt file2.txt      # Shows file details and processing steps
 ```
 
 #### Available Commands
@@ -182,27 +195,55 @@ ydmenu.py -v ClipboardPublish
 - `FileAddToStream` - Copy file to stream directory
 - `FileMoveToStream` - Move file to stream directory
 
+#### Multiple Item Processing Algorithms
+
+The Python version implements two distinct processing algorithms based on command type:
+
+**One-by-One Processing** (publish, save, remove/unpublish actions):
+```bash
+# Each file processed individually with progress notifications
+ydmenu.py PublishToYandexCom file1.txt file2.txt file3.txt
+# Output: "Published 3 items. All links copied to clipboard."
+# Clipboard contains: link1\nlink2\nlink3
+
+# If some files fail, processing continues with remaining files
+# Final notification shows: "Processed X of Y items"
+```
+
+**All-at-Once Processing** (file copy/move actions):
+```bash
+# All files processed in single batch operation
+ydmenu.py FileAddToStream file1.txt file2.txt file3.txt
+# More efficient for file system operations
+# Shows summary: "Copied 3 items to stream"
+# Lists first 5 items, shows count for remaining: "... and 2 more items"
+```
+
 #### Logging Features
 ```bash
 # Quiet logging by default - shows only essential info and errors
 ydmenu.py PublishToYandexCom file.txt
 
-# Use verbose mode to see detailed subprocess output
+# Use verbose mode to see detailed subprocess output and file details
 ydmenu.py --verbose PublishToYandexCom file.txt
 
 # Check log file for detailed operation history
 tail -f $YA_DISK_ROOT/yaMedia-python.log
 
 # Log always includes:
+# - Input parameters (command, file paths, counts, types)
 # - Command execution details
 # - Subprocess stderr (errors always visible)
+# - Individual file processing results
 # - Clipboard operations (pyclip vs xclip fallback)
 # - File conflict resolution
 # - Error details with return codes
 
 # Verbose mode additionally shows:
+# - File path details (existence, type, size)
 # - Subprocess stdout (command output)
 # - Debug-level information
+# - Individual file processing steps
 ```
 
 #### Clipboard Integration

@@ -496,8 +496,10 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
     @patch.dict(os.environ, {'YA_DISK_ROOT': ''})  # Will be set in test
+    @patch('subprocess.run')
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
-    def test_main_publish_command(self, mock_wait):
+    @patch('ydmenu.YandexDiskMenu.show_notification')
+    def test_main_publish_command(self, mock_notify, mock_wait, mock_subprocess):
         """Test main function with publish command"""
         # Set environment variable for this test
         os.environ['YA_DISK_ROOT'] = self.temp_dir
@@ -511,14 +513,25 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         test_file = os.path.join(self.temp_dir, 'test.txt')
         with open(test_file, 'w') as f:
             f.write("test content")
-            
-        import sys
-        with patch.object(sys.modules['ydmenu'], '_handle_publish_command') as mock_publish_handler:
+        
+        # Mock subprocess calls
+        mock_subprocess.return_value = MagicMock(
+            returncode=0,
+            stdout="Published URL: https://yadi.sk/d/test123",
+            stderr=""
+        )
+        
+        # Mock clipboard operations and file operations
+        with patch('ydmenu.YandexDiskMenu._copy_to_clipboard') as mock_clipboard, \
+             patch('shutil.move') as mock_move:
             from ydmenu import main_impl
             # Call main_impl directly with arguments
             main_impl('PublishToYandexCom', (test_file,))
             mock_wait.assert_called_once()
-            self.assertGreaterEqual(mock_publish_handler.call_count, 1)
+            # Verify subprocess was called for publish
+            self.assertTrue(any('publish' in str(call) for call in mock_subprocess.call_args_list))
+            # Verify notification was shown
+            mock_notify.assert_called()
 
     @patch('subprocess.run')
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
@@ -575,14 +588,15 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
     def test_main_verbose_option(self, mock_wait):
         """Test main function with verbose option"""
-        import sys
-        with patch.object(sys.modules['ydmenu'], '_handle_clipboard_to_stream_command') as mock_clipboard:
-            from ydmenu import main_impl
+        from ydmenu import main_impl
+        with patch('ydmenu.YandexDiskMenu.get_clipboard_content') as mock_clipboard, \
+             patch('sys.exit') as mock_exit:
+            # Mock clipboard content to avoid file system operations
+            mock_clipboard.return_value = None
             main_impl('ClipboardToStream', (), verbose=True)
             mock_wait.assert_called_once()
-            # The handler may not be called if the command does not trigger the handler in this context
-            # Remove strict assertion to avoid false negative
-            # mock_clipboard.assert_called_once()
+            # Should exit when no clipboard content
+            mock_exit.assert_called_once()
 
     @patch.dict(os.environ, {'YA_DISK_ROOT': ''})  # Will be set in test
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
@@ -606,20 +620,113 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         with open(conflict_file, 'w') as f:
             f.write("existing content")
         
-        import sys
-        with patch.object(sys.modules['ydmenu'], '_handle_publish_command') as mock_publish_handler:
+        # Mock subprocess calls and file operations
+        with patch('subprocess.run') as mock_subprocess, \
+             patch('ydmenu.YandexDiskMenu.show_notification') as mock_notify, \
+             patch('ydmenu.YandexDiskMenu._copy_to_clipboard') as mock_clipboard, \
+             patch('shutil.move') as mock_move:
+            
+            mock_subprocess.return_value = MagicMock(
+                returncode=0,
+                stdout="Published URL: https://yadi.sk/d/test123",
+                stderr=""
+            )
+            
             from ydmenu import main_impl
             # Call main_impl directly with arguments
             main_impl('PublishToYandexCom', (source_file,))
             mock_wait.assert_called_once()
-            mock_publish_handler.assert_called_once()
+            # Verify subprocess was called for publish
+            self.assertTrue(any('publish' in str(call) for call in mock_subprocess.call_args_list))
+            # Verify notification was shown
+            mock_notify.assert_called()
             self.assertTrue(os.path.exists(conflict_file))
             with open(conflict_file, 'r') as f:
                 self.assertEqual(f.read(), "existing content")
-            # The publish_file method should have been called with the renamed source
-            self.assertGreaterEqual(mock_publish_handler.call_count, 1)
 
     
+    @patch.dict(os.environ, {'YA_DISK_ROOT': ''})  # Will be set in test
+    @patch('subprocess.run')
+    @patch('ydmenu.YandexDiskMenu.wait_for_ready')
+    @patch('ydmenu.YandexDiskMenu.show_notification')
+    def test_main_multiple_files_publish(self, mock_notify, mock_wait, mock_subprocess):
+        """Test main function with multiple files for publish command (one-by-one processing)"""
+        # Set environment variable for this test
+        os.environ['YA_DISK_ROOT'] = self.temp_dir
+        
+        # Create required directory structure
+        ya_disk_dir = os.path.join(self.temp_dir, 'yaMedia')
+        stream_dir = os.path.join(ya_disk_dir, 'Media')
+        os.makedirs(stream_dir, exist_ok=True)
+        
+        # Create multiple test files
+        test_files = []
+        for i in range(3):
+            test_file = os.path.join(self.temp_dir, f'test{i}.txt')
+            with open(test_file, 'w') as f:
+                f.write(f"test content {i}")
+            test_files.append(test_file)
+        
+        # Mock subprocess calls
+        mock_subprocess.return_value = MagicMock(
+            returncode=0,
+            stdout="Published URL: https://yadi.sk/d/test123",
+            stderr=""
+        )
+        
+        # Mock clipboard operations and file operations
+        with patch('ydmenu.YandexDiskMenu._copy_to_clipboard') as mock_clipboard, \
+             patch('shutil.move') as mock_move:
+            from ydmenu import main_impl
+            # Call main_impl directly with multiple files
+            main_impl('PublishToYandexCom', tuple(test_files))
+            mock_wait.assert_called_once()
+            # Should be called multiple times (publish + yandex-disk status calls for each file)
+            self.assertGreaterEqual(mock_subprocess.call_count, len(test_files))
+            # Should collect all links and copy to clipboard multiple times (save/restore + final)
+            # The final call should contain all 3 links joined with newlines
+            final_call_args = mock_clipboard.call_args_list[-1][0][0]
+            self.assertEqual(final_call_args.count('\n'), 2)  # 3 links separated by 2 newlines
+            self.assertIn('Published URL: https://yadi.sk/d/test123', final_call_args)
+            # Should show final notification with count
+            mock_notify.assert_called()
+
+    @patch.dict(os.environ, {'YA_DISK_ROOT': ''})  # Will be set in test
+    @patch('ydmenu.YandexDiskMenu.wait_for_ready')
+    @patch('ydmenu.YandexDiskMenu.show_notification')
+    def test_main_multiple_files_batch(self, mock_notify, mock_wait):
+        """Test main function with multiple files for batch command (all-at-once processing)"""
+        # Set environment variable for this test
+        os.environ['YA_DISK_ROOT'] = self.temp_dir
+        
+        # Create required directory structure
+        ya_disk_dir = os.path.join(self.temp_dir, 'yaMedia')
+        stream_dir = os.path.join(ya_disk_dir, 'Media')
+        os.makedirs(stream_dir, exist_ok=True)
+        
+        # Create multiple test files
+        test_files = []
+        for i in range(3):
+            test_file = os.path.join(self.temp_dir, f'test{i}.txt')
+            with open(test_file, 'w') as f:
+                f.write(f"test content {i}")
+            test_files.append(test_file)
+        
+        with patch('ydmenu.YandexDiskMenu.sync_yandex_disk') as mock_sync:
+            mock_sync.return_value = "Sync completed"
+            from ydmenu import main_impl
+            # Call main_impl directly with multiple files for batch operation
+            main_impl('FileAddToStream', tuple(test_files))
+            mock_wait.assert_called_once()
+            # Should sync once after all operations
+            mock_sync.assert_called_once()
+            # Should show notification with batch summary
+            mock_notify.assert_called()
+            # All files should be copied to stream directory
+            for i, test_file in enumerate(test_files):
+                dest_file = os.path.join(stream_dir, f'test{i}.txt')
+                self.assertTrue(os.path.exists(dest_file))
+
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
     def test_main_default_quiet(self, mock_wait):
         """Test main function with default behavior (should be verbose=False)"""
