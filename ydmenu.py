@@ -210,9 +210,6 @@ class YandexDiskMenu:
         
         # Initialize clipboard handler
         self.clipboard = ClipboardHandler(self.logger)
-        
-        # Initialize command handlers
-        self.handlers = CommandHandlers(self)
     
     def __del__(self):
         """Cleanup logger handlers to prevent resource warnings"""
@@ -985,6 +982,8 @@ class CommandProcessor:
         self.yd_menu = yd_menu
         # Use the logger from the YandexDiskMenu instance
         self.logger = yd_menu.logger
+        # Initialize command handlers
+        self.handlers = CommandHandlers(yd_menu)
     
     def process_command(self, command_type: str, file_paths: tuple) -> None:
         """Main command processing logic with different algorithms"""
@@ -1012,19 +1011,19 @@ class CommandProcessor:
                         is_outside_file: bool, ya_disk_file_path: str) -> None:
         """Execute the specified command type via handler switch statement"""
         if command_type in ('PublishToYandexCom', 'PublishToYandex'):
-            self.yd_menu.handlers.handle_publish_command(command_type, src_file_path, is_outside_file, ya_disk_file_path)
+            self.handlers.handle_publish_command(command_type, src_file_path, is_outside_file, ya_disk_file_path)
         elif command_type in ('ClipboardPublishToCom', 'ClipboardPublish'):
-            self.yd_menu.handlers.handle_clipboard_publish_command(command_type)
+            self.handlers.handle_clipboard_publish_command(command_type)
         elif command_type == 'UnpublishFromYandex':
-            self.yd_menu.handlers.handle_unpublish_command(src_file_path, file_name, is_outside_file)
+            self.handlers.handle_unpublish_command(src_file_path, file_name, is_outside_file)
         elif command_type == 'UnpublishAllCopy':
-            self.yd_menu.handlers.handle_unpublish_all_command(src_file_path, file_name, file_dir, is_outside_file)
+            self.handlers.handle_unpublish_all_command(src_file_path, file_name, file_dir, is_outside_file)
         elif command_type == 'ClipboardToStream':
-            self.yd_menu.handlers.handle_clipboard_to_stream_command()
+            self.handlers.handle_clipboard_to_stream_command()
         elif command_type == 'FileAddToStream':
-            self.yd_menu.handlers.handle_file_add_to_stream_command(src_file_path)
+            self.handlers.handle_file_add_to_stream_command(src_file_path)
         elif command_type == 'FileMoveToStream':
-            self.yd_menu.handlers.handle_file_move_to_stream_command(src_file_path)
+            self.handlers.handle_file_move_to_stream_command(src_file_path)
         else:
             self._handle_unknown_command(command_type)
     
@@ -1042,7 +1041,7 @@ class CommandProcessor:
                 src_file_path, file_name, file_dir, is_outside_file = self.yd_menu._parse_file_info(file_path)
                 
                 # Log file information using helper method
-                self.yd_menu.handlers.log_file_info(file_path, src_file_path, file_name, file_dir, is_outside_file)
+                self.handlers.log_file_info(file_path, src_file_path, file_name, file_dir, is_outside_file)
                 
                 original_src_file_path = src_file_path
                 src_file_path, file_name, is_file_name_changed = self.yd_menu._rename_file_if_needed(
@@ -1057,7 +1056,7 @@ class CommandProcessor:
                 
                 # For publish commands, collect the link instead of copying immediately
                 if command_type in ('PublishToYandexCom', 'PublishToYandex'):
-                    link = self.yd_menu.handlers.handle_publish_command_collect_link(command_type, src_file_path, is_outside_file, ya_disk_file_path)
+                    link = self.handlers.handle_publish_command_collect_link(command_type, src_file_path, is_outside_file, ya_disk_file_path)
                     if link:
                         collected_links.append(link)
                         self.logger.info(f"Published: {file_path}")
@@ -1132,7 +1131,7 @@ class CommandProcessor:
                 src_file_path, file_name, file_dir, is_outside_file = self.yd_menu._parse_file_info(file_path)
                 
                 # Log file information using helper method
-                self.yd_menu.handlers.log_file_info(file_path, src_file_path, file_name, file_dir, is_outside_file)
+                self.handlers.log_file_info(file_path, src_file_path, file_name, file_dir, is_outside_file)
                 
                 original_src_file_path = src_file_path
                 
@@ -1164,9 +1163,9 @@ class CommandProcessor:
         
         # Execute batch operation
         if is_copy_operation:
-            self.yd_menu.handlers.handle_batch_add_to_stream(processed_items)
+            self.handlers.handle_batch_add_to_stream(processed_items)
         elif command_type == 'FileMoveToStream':
-            self.yd_menu.handlers.handle_batch_move_to_stream(processed_items)
+            self.handlers.handle_batch_move_to_stream(processed_items)
         else:
             self.yd_menu.show_notification(f"Unknown batch command: {command_type}", Constants.TIMEOUT_SHORT, 'error')
         

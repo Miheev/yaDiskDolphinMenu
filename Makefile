@@ -1,6 +1,6 @@
 # Makefile for Yandex Disk Dolphin Menu - Python version management
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -48,6 +48,31 @@ test-coverage: install-deps  ## Run tests with coverage
 	$(VENV_DIR)/bin/coverage run -m pytest test_*.py
 	$(VENV_DIR)/bin/coverage report -m
 
+coverage: install-deps  ## Run tests with coverage (alias for test-coverage)
+	$(PIP) install coverage
+	$(VENV_DIR)/bin/coverage run -m pytest test_*.py
+	$(VENV_DIR)/bin/coverage report -m
+
+coverage-html: install-deps  ## Generate HTML coverage report
+	$(PIP) install coverage
+	$(VENV_DIR)/bin/coverage run -m pytest test_*.py
+	$(VENV_DIR)/bin/coverage html
+	@echo "Coverage HTML report generated in htmlcov/index.html"
+
+coverage-browse: coverage-html  ## Generate coverage report and open in browser
+	@echo "Opening coverage report in browser..."
+	@if command -v xdg-open >/dev/null 2>&1; then \
+		xdg-open htmlcov/index.html; \
+	elif command -v firefox >/dev/null 2>&1; then \
+		firefox htmlcov/index.html; \
+	elif command -v google-chrome >/dev/null 2>&1; then \
+		google-chrome htmlcov/index.html; \
+	elif command -v chromium >/dev/null 2>&1; then \
+		chromium htmlcov/index.html; \
+	else \
+		echo "No suitable browser found. Please open htmlcov/index.html manually."; \
+	fi
+
 lint: install-deps  ## Run code linting
 	$(PIP) install flake8 pylint
 	$(VENV_DIR)/bin/flake8 ydmenu.py setup.py --max-line-length=120
@@ -66,6 +91,7 @@ clean:  ## Clean up generated files
 	rm -rf .pytest_cache
 	rm -rf *.pyc
 	rm -rf .coverage
+	rm -rf htmlcov
 	find . -name "*.pyc" -delete
 	find . -name "__pycache__" -delete
 

@@ -1,0 +1,25 @@
+[run]
+source = .
+omit = 
+    venv/*
+    test_*.py
+    .coverage
+    htmlcov/*
+    
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    if __name__ == .__main__.:
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if False:
+    pass
+    except ImportError:
+
+[html]
+directory = htmlcov
+title = yaDiskDolphinMenu Coverage Report
+show_contexts = true

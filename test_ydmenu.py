@@ -47,7 +47,10 @@ class TestYandexDiskMenu(unittest.TestCase):
         # Patch sync and notification
         with patch.object(self.yd_menu, "sync_yandex_disk", return_value="sync ok"), \
              patch.object(self.yd_menu, "show_notification") as mock_notify:
-            self.yd_menu.handlers.handle_file_add_to_stream_command(test_dir)
+            # Create a command processor to test the handler
+            from ydmenu import CommandProcessor
+            processor = CommandProcessor(self.yd_menu)
+            processor.handlers.handle_file_add_to_stream_command(test_dir)
             mock_copytree.assert_called_once_with(test_dir, dest_dir)
             mock_notify.assert_called()
 
@@ -57,7 +60,10 @@ class TestYandexDiskMenu(unittest.TestCase):
         dest_dir = os.path.join(self.stream_dir, "movedir")
         with patch.object(self.yd_menu, "sync_yandex_disk", return_value="sync ok"), \
              patch.object(self.yd_menu, "show_notification") as mock_notify:
-            self.yd_menu.handlers.handle_file_move_to_stream_command(test_dir)
+            # Create a command processor to test the handler
+            from ydmenu import CommandProcessor
+            processor = CommandProcessor(self.yd_menu)
+            processor.handlers.handle_file_move_to_stream_command(test_dir)
             mock_move.assert_called_once_with(test_dir, dest_dir)
             mock_notify.assert_called()
 
@@ -67,7 +73,10 @@ class TestYandexDiskMenu(unittest.TestCase):
         test_dir = os.path.join(self.temp_dir, "publishdir")
         with patch.object(self.yd_menu, "publish_file") as mock_publish, \
              patch.object(self.yd_menu, "show_notification") as mock_notify:
-            self.yd_menu.handlers.handle_publish_command("PublishToYandexCom", test_dir, False, "")
+            # Create a command processor to test the handler
+            from ydmenu import CommandProcessor
+            processor = CommandProcessor(self.yd_menu)
+            processor.handlers.handle_publish_command("PublishToYandexCom", test_dir, False, "")
             mock_publish.assert_called_once_with(test_dir, True)
             mock_notify.assert_called()
 

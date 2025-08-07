@@ -51,6 +51,7 @@ make lint          # Code quality checks
 - ✅ No linting errors
 - ✅ Coverage maintained or improved
 - ✅ New functionality has corresponding tests
+- ✅ Test coverage no less 90%
 
 ## Documentation Updates (MANDATORY)
 
