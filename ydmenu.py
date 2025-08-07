@@ -4,6 +4,7 @@ Yandex Disk menu actions logic for KDE Dolphin
 Python rewrite of ydmenu.sh functionality
 """
 
+from ntpath import exists
 import os
 import sys
 import re
@@ -236,7 +237,7 @@ class YandexDiskMenu:
         """Format URL as clickable link"""
         if not url:
             return ""
-        return f"<a href='{url}'><b>{url}</b></a>"
+        return f"<b>{url}</b>"
             
     def show_notification(self, message: str, timeout: int = None, icon_type: str = 'info') -> None:
         """Show KDE notification using kdialog"""
@@ -262,7 +263,7 @@ class YandexDiskMenu:
         error_msg = log_message or message
         self.logger.error(error_msg)
             
-        notification_msg = f"{message}\nSee <a href='file://{self.log_file_path}'>log</a> for details"
+        notification_msg = f"{message}\nSee <b>{self.log_file_path}</b> for details"
         self.show_notification(notification_msg, Constants.TIMEOUT_ERROR, 'error')
         sys.exit(Constants.EXIT_CODE_ERROR)
     
@@ -495,6 +496,8 @@ class YandexDiskMenu:
     def unpublish_file(self, file_path: str) -> str:
         """Unpublish a single file"""
         try:
+            if not os.path.exists(file_path):
+                return 'Error: File doesn\'t exists'
             result = self._run_command(['yandex-disk', 'unpublish', file_path], timeout=Constants.TIMEOUT_LONG)
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
@@ -905,7 +908,7 @@ def _handle_unpublish_command(yd_menu: YandexDiskMenu, src_file_path: str, file_
     result = yd_menu.unpublish_file(target_file)
     
     if any(error in result.lower() for error in ['unknown error', 'error:']):
-        yd_menu.show_error_and_exit(f"{result} for <b>{file_name}</b>.", f"{result} - {file_name}")
+        yd_menu.show_error_and_exit(f"{result} for <b>{target_file}</b>.", f"{result} - {file_name}")
     
     yd_menu.show_notification(f"{result} for <b>{file_name}</b>.", Constants.TIMEOUT_SHORT)
 
@@ -1079,15 +1082,19 @@ class CommandProcessor:
             all_links = '\n'.join(collected_links)
             self.yd_menu._copy_to_clipboard(all_links)
             
+            # Do not show multiple links notification if only one link is collected
+            if len(collected_links) <= 1:
+                return
+
             # Format the notification to show links properly
             if len(collected_links) <= 3:
                 # Show all links if 3 or fewer
                 formatted_links = '\n'.join(self.yd_menu.format_link(link) for link in collected_links)
-                message = f"Published {len(collected_links)} items. All links copied:\n{formatted_links}"
+                message = f"Published {len(collected_links)} of {len(file_paths)} items. All links copied:\n{formatted_links}"
             else:
                 # Show first 3 links with count
                 formatted_links = '\n'.join(self.yd_menu.format_link(link) for link in collected_links[:3])
-                message = f"Published {len(collected_links)} items. All links copied:\n{formatted_links}\n... and {len(collected_links) - 3} more links"
+                message = f"Published {len(collected_links)} of {len(file_paths)} items. All links copied:\n{formatted_links}\n... and {len(collected_links) - 3} more links"
             
             self.yd_menu.show_notification(message, Constants.TIMEOUT_MEDIUM)
         
@@ -1173,7 +1180,7 @@ class CommandProcessor:
     def _handle_unknown_command(self, command_type: str) -> None:
         """Handle unknown command"""
         work_path = f"{os.path.expanduser('~')}/{self.yd_menu.KDE_SERVICE_MENU_PATH}"
-        self.yd_menu.show_notification(f"<b>Unknown action {command_type}</b>.\n\nCheck the menu files in <a href='file://{work_path}'>{work_path}</a> for available actions.", Constants.TIMEOUT_ERROR, 'error')
+        self.yd_menu.show_notification(f"<b>Unknown action {command_type}</b>.\n\nCheck the menu files in <b>{work_path}</b> for available actions.", Constants.TIMEOUT_ERROR, 'error')
         self.logger.warning(f"Unknown action: {command_type}")
 
 import click
