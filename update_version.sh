@@ -170,6 +170,30 @@ check_git_status() {
     print_success "Git repository status OK"
 }
 
+# Function to get commit summary since last tag
+get_commit_summary() {
+    local new_version="$1"
+    
+    # Get the last tag
+    local last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+    
+    if [[ -z "$last_tag" ]]; then
+        # No previous tags, get all commits
+        local commit_summary=$(git log --oneline --reverse | head -10 | sed 's/^/• /')
+        echo "Initial release v$new_version
+
+Changes since repository creation:
+$commit_summary"
+    else
+        # Get commits since last tag
+        local commit_summary=$(git log --oneline "${last_tag}..HEAD" | sed 's/^/• /')
+        echo "Release v$new_version
+
+Changes since ${last_tag}:
+$commit_summary"
+    fi
+}
+
 # Function to create git commit
 create_git_commit() {
     local new_version="$1"
@@ -192,8 +216,10 @@ and regenerates all necessary configuration files."
     
     # Create commit
     if git commit -am "$commit_message"; then
-        git tag -a "v$new_version" -m "Python Application Version: $new_version"
-        print_success "Git commit created successfully"
+        # Generate tag message from commit summary
+        local tag_message=$(get_commit_summary "$new_version")
+        git tag -a "v$new_version" -m "$tag_message"
+        print_success "Git commit and tag created successfully"
     else
         print_error "Failed to create git commit"
         exit 1
