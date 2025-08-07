@@ -486,6 +486,197 @@ class TestYandexDiskMenu(unittest.TestCase):
             self.assertIn("<b>test.txt</b> - success", result)
             self.assertIn("<b>test_1.txt</b> - success", result)
             self.assertIn("<b>test_2.txt</b> - success", result)
+    
+    def test_unpublish_file_missing_file(self):
+        """Test unpublishing a file that doesn't exist"""
+        non_existent_file = "/path/to/nonexistent.txt"
+        result = self.yd_menu.unpublish_file(non_existent_file)
+        self.assertEqual(result, "Error: File doesn't exists")
+    
+    def test_unpublish_file_command_error(self):
+        """Test unpublishing file when yandex-disk command fails"""
+        test_file = os.path.join(self.temp_dir, 'test.txt')
+        with open(test_file, 'w') as f:
+            f.write('test')
+        
+        with patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(1, 'yandex-disk')):
+            result = self.yd_menu.unpublish_file(test_file)
+            self.assertIn("Error:", result)
+    
+    def test_validate_publish_result_with_error(self):
+        """Test validation of publish result with error"""
+        error_path = "unknown publish error occurred"
+        with patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
+            self.yd_menu._validate_publish_result(error_path)
+            mock_exit.assert_called_once_with(f"<b>{error_path}</b>", error_path)
+    
+    def test_validate_publish_result_success(self):
+        """Test validation of publish result without error"""
+        success_path = "https://yadi.sk/d/test123"
+        # Should not raise or call show_error_and_exit
+        self.yd_menu._validate_publish_result(success_path)
+    
+    def test_clipboard_bytes_content(self):
+        """Test clipboard handling with bytes content"""
+        with patch('pyclip.paste', return_value=b'test content'):
+            result = self.yd_menu.clipboard.get_text()
+            self.assertEqual(result, 'test content')
+    
+    def test_clipboard_pyclip_exception(self):
+        """Test clipboard handling when pyclip raises exception"""
+        with patch('pyclip.paste', side_effect=Exception("pyclip error")):
+            result = self.yd_menu.clipboard.get_text()
+            self.assertIsNone(result)
+    
+    def test_clipboard_image_detection_error(self):
+        """Test clipboard image detection when pyclip fails"""
+        with patch('pyclip.paste', side_effect=Exception("pyclip error")):
+            result = self.yd_menu.clipboard.has_image()
+            self.assertFalse(result)
+    
+    def test_clipboard_image_data_retrieval_error(self):
+        """Test clipboard image data retrieval when pyclip fails"""
+        with patch('pyclip.paste', side_effect=Exception("pyclip error")):
+            result = self.yd_menu.clipboard.get_image_data()
+            self.assertIsNone(result)
+    
+    def test_save_clipboard_image_pyclip_io_error(self):
+        """Test saving clipboard image when pyclip succeeds but file write fails"""
+        image_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR'
+        
+        # Mock the file operations to fail on the first call (pyclip) but succeed on second (xclip)
+        mock_file = mock_open()
+        mock_file.side_effect = [IOError("Permission denied"), mock_file.return_value]
+        
+        with patch('pyclip.paste', return_value=image_data), \
+             patch('builtins.open', mock_file), \
+             patch('subprocess.run') as mock_subprocess:
+            
+            # Should fall back to xclip
+            mock_subprocess.return_value = None
+            result = self.yd_menu._save_clipboard_image("image/png", "2023-01-01 12:00:00")
+            
+            # Should have tried pyclip first, then xclip
+            self.assertEqual(mock_file.call_count, 2)  # Called twice: pyclip fail, xclip success
+            mock_subprocess.assert_called_once()
+    
+    def test_save_clipboard_image_all_methods_fail(self):
+        """Test saving clipboard image when all methods fail"""
+        with patch('pyclip.paste', return_value=None), \
+             patch('subprocess.run', side_effect=subprocess.CalledProcessError(1, 'xclip')), \
+             patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
+            
+            self.yd_menu._save_clipboard_image("image/png", "2023-01-01 12:00:00")
+            mock_exit.assert_called_once()
+    
+    def test_get_clipboard_text_xclip_fallback_error(self):
+        """Test getting clipboard text when both pyclip and xclip fail"""
+        with patch('pyclip.paste', return_value=None), \
+             patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(1, 'xclip')), \
+             patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
+            
+            self.yd_menu._get_clipboard_text()
+            mock_exit.assert_called_once_with("Cannot access clipboard - all methods failed")
+    
+    def test_copy_to_clipboard_all_methods_fail(self):
+        """Test copying to clipboard when both pyclip and xclip fail"""
+        with patch('pyclip.copy', side_effect=Exception("pyclip failed")), \
+             patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(1, 'xclip')), \
+             patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
+            
+            self.yd_menu._copy_to_clipboard("test")
+            mock_exit.assert_called_once_with("Cannot copy to clipboard - all methods failed")
+    
+    def test_format_file_path_empty(self):
+        """Test format_file_path with empty path"""
+        result = self.yd_menu.format_file_path("")
+        self.assertEqual(result, "")
+    
+    def test_format_link_empty(self):
+        """Test format_link with empty URL"""
+        result = self.yd_menu.format_link("")
+        self.assertEqual(result, "")
+    
+    def test_create_com_link_without_marker(self):
+        """Test creating .com link when .sk marker is not present"""
+        publish_path = "https://yadi.ru/d/direct_link"
+        result = self.yd_menu._create_com_link(publish_path)
+        self.assertEqual(result, publish_path)  # Should return unchanged
+
+
+    def test_should_rename_file_no_conflict(self):
+        """Test file renaming logic when no conflict exists"""
+        file_path = os.path.join(self.temp_dir, "test.txt")
+        with open(file_path, 'w') as f:
+            f.write('test')
+        
+        result = self.yd_menu._should_rename_file(file_path, "test.txt", True, "PublishToYandexCom")
+        self.assertFalse(result)  # No conflict, no rename needed
+    
+    def test_should_rename_file_with_conflict(self):
+        """Test file renaming logic when conflict exists"""
+        # Create source file
+        file_path = os.path.join(self.temp_dir, "test.txt")
+        with open(file_path, 'w') as f:
+            f.write('test')
+        
+        # Create conflicting file in stream
+        stream_file = os.path.join(self.yd_menu.stream_dir, "test.txt")
+        with open(stream_file, 'w') as f:
+            f.write('conflict')
+        
+        result = self.yd_menu._should_rename_file(file_path, "test.txt", True, "PublishToYandexCom")
+        self.assertTrue(result)  # Conflict exists, rename needed
+    
+    def test_generate_unique_file_name(self):
+        """Test unique filename generation with conflicts"""
+        # Create conflicting files
+        base_file = os.path.join(self.temp_dir, "test.txt")
+        conflict_stream = os.path.join(self.yd_menu.stream_dir, "test_1.txt")
+        conflict_ya = os.path.join(self.yd_menu.ya_disk, "test_2.txt")
+        
+        with open(base_file, 'w') as f:
+            f.write('base')
+        os.makedirs(os.path.dirname(conflict_stream), exist_ok=True)
+        with open(conflict_stream, 'w') as f:
+            f.write('stream')
+        os.makedirs(os.path.dirname(conflict_ya), exist_ok=True)
+        with open(conflict_ya, 'w') as f:
+            f.write('ya')
+        
+        new_name, new_path = self.yd_menu._generate_unique_file_name(base_file, "test.txt", self.temp_dir)
+        self.assertEqual(new_name, "test_3.txt")
+        self.assertEqual(new_path, os.path.join(self.temp_dir, "test_3.txt"))
+    
+    def test_generate_unique_file_name_hidden_file(self):
+        """Test unique filename generation for hidden files"""
+        hidden_file = os.path.join(self.temp_dir, ".hidden")
+        with open(hidden_file, 'w') as f:
+            f.write('hidden')
+        
+        new_name, new_path = self.yd_menu._generate_unique_file_name(hidden_file, ".hidden", self.temp_dir)
+        self.assertEqual(new_name, ".hidden_1")
+        self.assertEqual(new_path, os.path.join(self.temp_dir, ".hidden_1"))
+    
+    def test_parse_file_info(self):
+        """Test file path parsing"""
+        file_path = "/some/path/test.txt"
+        result = self.yd_menu._parse_file_info(file_path)
+        expected = (file_path, "test.txt", "/some/path", True)
+        self.assertEqual(result, expected)
+    
+    def test_parse_file_info_inside_ya_disk(self):
+        """Test file path parsing for file inside ya_disk"""
+        file_path = f"{self.yd_menu.ya_disk}/test.txt"
+        result = self.yd_menu._parse_file_info(file_path)
+        expected = (file_path, "test.txt", self.yd_menu.ya_disk, False)
+        self.assertEqual(result, expected)
+    
+    def test_parse_file_info_empty_path(self):
+        """Test file path parsing with empty path"""
+        result = self.yd_menu._parse_file_info("")
+        expected = ("", "", "", True)
+        self.assertEqual(result, expected)
 
 
 class TestYandexDiskMenuIntegration(unittest.TestCase):
@@ -755,6 +946,400 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             # mock_wait.assert_called_once()  # Disabled: cannot patch in click subprocess
             # No handler assertion: cannot patch in click subprocess
+
+
+class TestCommandHandlers(unittest.TestCase):
+    """Test the CommandHandlers class functionality"""
+    
+    def setUp(self):
+        """Set up test environment"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.ya_disk_root = os.path.join(self.temp_dir, 'yandex')
+        self.ya_disk = os.path.join(self.ya_disk_root, 'yaMedia')
+        self.stream_dir = os.path.join(self.ya_disk, 'Media')
+        
+        # Create test directories
+        os.makedirs(self.stream_dir, exist_ok=True)
+        
+        # Mock environment variables
+        self.env_patcher = patch.dict(os.environ, {
+            'YA_DISK_ROOT': self.ya_disk_root
+        })
+        self.env_patcher.start()
+        
+        self.yd_menu = YandexDiskMenu(verbose=False)
+        from ydmenu import CommandProcessor
+        self.processor = CommandProcessor(self.yd_menu)
+    
+    def tearDown(self):
+        """Clean up test environment"""
+        self.env_patcher.stop()
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def test_command_handlers_initialization(self):
+        """Test that CommandHandlers is properly initialized in CommandProcessor"""
+        from ydmenu import CommandHandlers
+        self.assertIsInstance(self.processor.handlers, CommandHandlers)
+        self.assertEqual(self.processor.handlers.yd_menu, self.yd_menu)
+    
+    def test_handle_clipboard_publish_command_no_content(self):
+        """Test clipboard publish when no content available"""
+        with patch.object(self.yd_menu, 'get_clipboard_content', return_value=None), \
+             patch('sys.exit', side_effect=SystemExit(Constants.EXIT_CODE_ERROR)) as mock_exit:
+            # The handler should exit early when no content is available
+            with self.assertRaises(SystemExit):
+                self.processor.handlers.handle_clipboard_publish_command('ClipboardPublishToCom')
+            mock_exit.assert_called_once_with(Constants.EXIT_CODE_ERROR)
+    
+    def test_handle_clipboard_to_stream_command_no_content(self):
+        """Test clipboard to stream when no content available"""
+        with patch.object(self.yd_menu, 'get_clipboard_content', return_value=None), \
+             patch('sys.exit') as mock_exit:
+            self.processor.handlers.handle_clipboard_to_stream_command()
+            mock_exit.assert_called_once_with(Constants.EXIT_CODE_ERROR)
+    
+    @patch('os.path.isdir', return_value=False)
+    def test_handle_publish_command_file(self, mock_isdir):
+        """Test handle_publish_command for a file"""
+        test_file = os.path.join(self.temp_dir, 'test.txt')
+        with patch.object(self.yd_menu, 'publish_file') as mock_publish, \
+             patch.object(self.yd_menu, 'show_notification') as mock_notify:
+            self.processor.handlers.handle_publish_command('PublishToYandexCom', test_file, False, '')
+            mock_publish.assert_called_once_with(test_file, True)
+            mock_notify.assert_called_once()
+    
+    def test_log_file_info(self):
+        """Test log_file_info method"""
+        with patch.object(self.processor.handlers.logger, 'debug') as mock_debug:
+            self.processor.handlers.log_file_info('/path/file.txt', '/path/file.txt', 'file.txt', '/path', True)
+            # Should make multiple debug calls
+            self.assertGreater(mock_debug.call_count, 1)
+    
+    @patch('errno.ENOTDIR', 20)  # Mock errno value
+    def test_handle_batch_move_to_stream_with_errors(self):
+        """Test batch move operation with various error scenarios"""
+        # Create test files
+        test_files = []
+        for i in range(3):
+            test_file = os.path.join(self.temp_dir, f'test{i}.txt')
+            with open(test_file, 'w') as f:
+                f.write(f'content {i}')
+            test_files.append(test_file)
+        
+        # Mock processed items (filename, new_name, rename_back_func)
+        processed_items = [(f, os.path.basename(f), lambda: None) for f in test_files]
+        
+        # Mock shutil.move to simulate different scenarios
+        def move_side_effect(src, dst):
+            if 'test0' in src:
+                # First file succeeds
+                return
+            elif 'test1' in src:
+                # Second file fails with ENOTDIR, should retry and succeed
+                error = OSError("ENOTDIR")
+                error.errno = 20  # ENOTDIR
+                raise error
+            else:
+                # Third file fails with different error
+                raise OSError("Permission denied")
+        
+        with patch('shutil.move', side_effect=move_side_effect), \
+             patch.object(self.yd_menu, 'sync_yandex_disk', return_value="synced"), \
+             patch.object(self.yd_menu, 'show_notification') as mock_notify:
+            
+            self.processor.handlers.handle_batch_move_to_stream(processed_items)
+            
+            # Should show notification - check call count (partial success shows two notifications)
+            self.assertGreaterEqual(mock_notify.call_count, 1)
+            # The first notification should be about partial success
+            if mock_notify.call_count > 1:
+                first_call = mock_notify.call_args_list[0]
+                self.assertIn("failed", first_call[0][0])
+            else:
+                # Single notification for successful items only
+                self.assertIn("Moved", mock_notify.call_args[0][0])
+    
+    def test_handle_batch_move_to_stream_all_errors(self):
+        """Test batch move operation when all items fail"""
+        test_file = os.path.join(self.temp_dir, 'test.txt')
+        with open(test_file, 'w') as f:
+            f.write('content')
+        
+        processed_items = [(test_file, 'test.txt', lambda: None)]
+        
+        with patch('shutil.move', side_effect=OSError("Permission denied")), \
+             patch.object(self.yd_menu, 'sync_yandex_disk', return_value="synced"), \
+             patch.object(self.yd_menu, 'show_notification') as mock_notify:
+            
+            self.processor.handlers.handle_batch_move_to_stream(processed_items)
+            
+            # Should show error notification and return early
+            mock_notify.assert_called()
+            notification_msg = mock_notify.call_args[0][0]
+            self.assertIn("failed for all items", notification_msg)
+    
+    def test_handle_batch_move_to_stream_many_items(self):
+        """Test batch move with more than 5 items to test display logic"""
+        # Create 7 test files
+        test_files = []
+        for i in range(7):
+            test_file = os.path.join(self.temp_dir, f'test{i}.txt')
+            with open(test_file, 'w') as f:
+                f.write(f'content {i}')
+            test_files.append(test_file)
+        
+        processed_items = [(f, os.path.basename(f), lambda: None) for f in test_files]
+        
+        with patch('shutil.move'), \
+             patch.object(self.yd_menu, 'sync_yandex_disk', return_value="synced"), \
+             patch.object(self.yd_menu, 'show_notification') as mock_notify:
+            
+            self.processor.handlers.handle_batch_move_to_stream(processed_items)
+            
+            # Should show notification with "... and 2 more items"
+            mock_notify.assert_called()
+            notification_msg = mock_notify.call_args[0][0]
+            self.assertIn("and 2 more items", notification_msg)
+    
+    @patch('errno.ENOTDIR', 20)
+    def test_handle_batch_add_to_stream_directory_errno(self):
+        """Test batch add operation with directory ENOTDIR handling"""
+        test_dir = os.path.join(self.temp_dir, 'testdir')
+        os.makedirs(test_dir)
+        
+        processed_items = [(test_dir, 'testdir', lambda: None)]
+        
+        def copytree_side_effect(src, dst):
+            error = OSError("ENOTDIR")
+            error.errno = 20  # ENOTDIR
+            raise error
+        
+        with patch('shutil.copytree', side_effect=copytree_side_effect), \
+             patch('shutil.copy2') as mock_copy2, \
+             patch.object(self.yd_menu, 'sync_yandex_disk', return_value="synced"), \
+             patch.object(self.yd_menu, 'show_notification'):
+            
+            self.processor.handlers.handle_batch_add_to_stream(processed_items)
+            
+            # Should fall back to copy2
+            mock_copy2.assert_called()
+    
+    def test_handle_batch_add_to_stream_other_os_error(self):
+        """Test batch add operation with non-ENOTDIR OSError"""
+        test_dir = os.path.join(self.temp_dir, 'testdir')
+        os.makedirs(test_dir)
+        
+        processed_items = [(test_dir, 'testdir', lambda: None)]
+        
+        with patch('shutil.copytree', side_effect=OSError("Permission denied")), \
+             patch.object(self.yd_menu, 'sync_yandex_disk', return_value="synced"), \
+             patch.object(self.yd_menu, 'show_notification') as mock_notify:
+            
+            self.processor.handlers.handle_batch_add_to_stream(processed_items)
+            
+            # Should show error notification
+            mock_notify.assert_called()
+            notification_msg = mock_notify.call_args[0][0]
+            self.assertIn("failed for all items", notification_msg)
+    
+    def test_handle_file_move_to_stream_directory_errno(self):
+        """Test individual file move with directory ENOTDIR error handling"""
+        test_dir = os.path.join(self.temp_dir, 'testdir')
+        os.makedirs(test_dir)
+        
+        call_count = 0
+        def move_side_effect(src, dst):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First call fails with ENOTDIR
+                error = OSError("ENOTDIR")
+                error.errno = 20  # ENOTDIR
+                raise error
+            else:
+                # Second call (retry) succeeds
+                return
+        
+        with patch('shutil.move', side_effect=move_side_effect), \
+             patch.object(self.yd_menu, 'sync_yandex_disk', return_value="synced"), \
+             patch.object(self.yd_menu, 'show_notification') as mock_notify:
+            
+            self.processor.handlers.handle_file_move_to_stream_command(test_dir)
+            
+            # Should handle the ENOTDIR error and retry
+            mock_notify.assert_called()
+            self.assertEqual(call_count, 2)  # Should have been called twice
+    
+    def test_handle_file_add_to_stream_directory_errno(self):
+        """Test individual file add with directory ENOTDIR error"""
+        test_dir = os.path.join(self.temp_dir, 'testdir')
+        os.makedirs(test_dir)
+        
+        def copytree_side_effect(src, dst):
+            error = OSError("ENOTDIR")
+            error.errno = 20  # ENOTDIR
+            raise error
+        
+        with patch('shutil.copytree', side_effect=copytree_side_effect), \
+             patch('shutil.copy2') as mock_copy2, \
+             patch.object(self.yd_menu, 'sync_yandex_disk', return_value="synced"), \
+             patch.object(self.yd_menu, 'show_notification'):
+            
+            self.processor.handlers.handle_file_add_to_stream_command(test_dir)
+            
+            # Should fall back to copy2
+            mock_copy2.assert_called()
+    
+    def test_handle_unpublish_command_with_error(self):
+        """Test unpublish command when result contains error"""
+        with patch.object(self.yd_menu, 'unpublish_file', return_value="unknown error occurred"), \
+             patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
+            
+            self.processor.handlers.handle_unpublish_command("/path/test.txt", "test.txt", False)
+            
+            mock_exit.assert_called_once()
+    
+    def test_handle_unpublish_all_command_outside_file(self):
+        """Test unpublish all command for outside file"""
+        with patch.object(self.yd_menu, 'unpublish_copies', return_value="success") as mock_unpublish, \
+             patch.object(self.yd_menu, 'show_notification'):
+            
+            self.processor.handlers.handle_unpublish_all_command("/outside/test.txt", "test.txt", "/outside", True)
+            
+            # Should call unpublish_copies with stream directory paths
+            mock_unpublish.assert_called_once_with(
+                self.yd_menu.stream_dir, 
+                f"{self.yd_menu.stream_dir}/test.txt", 
+                "test.txt"
+            )
+    
+    def test_handle_unpublish_all_command_with_error(self):
+        """Test unpublish all command when result contains error"""
+        with patch.object(self.yd_menu, 'unpublish_copies', return_value="error: failed to unpublish"), \
+             patch.object(self.yd_menu, 'show_notification') as mock_notify:
+            
+            self.processor.handlers.handle_unpublish_all_command("/path/test.txt", "test.txt", "/path", False)
+            
+            # Should show error notification
+            mock_notify.assert_called()
+            args = mock_notify.call_args
+            self.assertEqual(args[0][2], 'error')  # icon_type should be 'error'
+            self.assertEqual(args[0][1], Constants.TIMEOUT_ERROR)  # timeout should be error timeout
+
+
+class TestAdditionalCoverage(unittest.TestCase):
+    """Additional tests to reach 90% coverage target"""
+    
+    def setUp(self):
+        """Set up test environment"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.ya_disk_root = os.path.join(self.temp_dir, 'yandex')
+        self.ya_disk = os.path.join(self.ya_disk_root, 'yaMedia')
+        self.stream_dir = os.path.join(self.ya_disk, 'Media')
+        
+        # Create test directories
+        os.makedirs(self.stream_dir, exist_ok=True)
+        
+        # Mock environment variables
+        self.env_patcher = patch.dict(os.environ, {
+            'YA_DISK_ROOT': self.ya_disk_root
+        })
+        self.env_patcher.start()
+        
+        self.yd_menu = YandexDiskMenu(verbose=False)
+    
+    def tearDown(self):
+        """Clean up test environment"""
+        self.env_patcher.stop()
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def test_wait_for_ready_timeout(self):
+        """Test wait_for_ready when service never becomes ready"""
+        # Mock yandex-disk status to always return 'busy'
+        mock_result = MagicMock()
+        mock_result.stdout = "Synchronization core status: busy\n"
+        
+        with patch.object(self.yd_menu, '_run_command', return_value=mock_result), \
+             patch.object(self.yd_menu, 'show_notification'), \
+             patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit, \
+             patch('time.sleep'):
+            
+            self.yd_menu.wait_for_ready()
+            
+            # Should call show_error_and_exit after timeout
+            mock_exit.assert_called_once()
+            args = mock_exit.call_args[0]
+            self.assertIn("Service is not available", args[0])
+    
+    def test_get_yandex_status_exception(self):
+        """Test _get_yandex_status when command fails"""
+        with patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(1, 'yandex-disk')):
+            status = self.yd_menu._get_yandex_status()
+            self.assertEqual(status, 'not started')
+    
+    def test_parse_yandex_status_no_status_line(self):
+        """Test _parse_yandex_status when no status line is found"""
+        stdout = "Some output without status line\nAnother line\n"
+        result = self.yd_menu._parse_yandex_status(stdout)
+        self.assertEqual(result, 'not started')
+    
+    def test_create_filename_from_text_empty_content(self):
+        """Test _create_filename_from_text with empty content"""
+        result = self.yd_menu._create_filename_from_text("", "2023-01-01 12:00:00")
+        expected = f"{self.yd_menu.stream_dir}/note-2023-01-01 12:00:00.txt"
+        self.assertEqual(result, expected)
+    
+    def test_create_filename_from_text_with_problematic_chars(self):
+        """Test _create_filename_from_text with characters that need sanitization"""
+        content = "<script>alert('test')</script> https://example.com test::  filename"
+        result = self.yd_menu._create_filename_from_text(content, "2023-01-01 12:00:00")
+        # Should sanitize problematic characters
+        self.assertNotIn("<", result)
+        self.assertNotIn(">", result)
+        self.assertNotIn("::", result)
+        self.assertIn("note-2023-01-01 12:00:00", result)
+    
+    def test_get_clipboard_image_type_xclip_fallback(self):
+        """Test clipboard image type detection with xclip fallback"""
+        # Mock pyclip to not detect image
+        with patch.object(self.yd_menu.clipboard, 'has_image', return_value=False), \
+             patch.object(self.yd_menu, '_run_command') as mock_run:
+            
+            mock_result = MagicMock()
+            mock_result.stdout = "image/png\ntext/plain\n"
+            mock_run.return_value = mock_result
+            
+            result = self.yd_menu._get_clipboard_image_type()
+            self.assertEqual(result, "image/png")
+    
+    def test_get_clipboard_image_type_no_image(self):
+        """Test clipboard image type detection when no image is present"""
+        with patch.object(self.yd_menu.clipboard, 'has_image', return_value=False), \
+             patch.object(self.yd_menu, '_run_command') as mock_run:
+            
+            mock_result = MagicMock()
+            mock_result.stdout = "text/plain\ntext/html\n"
+            mock_run.return_value = mock_result
+            
+            result = self.yd_menu._get_clipboard_image_type()
+            self.assertIsNone(result)
+    
+    def test_get_clipboard_image_type_xclip_error(self):
+        """Test clipboard image type detection when xclip fails"""
+        with patch.object(self.yd_menu.clipboard, 'has_image', return_value=False), \
+             patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(1, 'xclip')):
+            
+            result = self.yd_menu._get_clipboard_image_type()
+            self.assertIsNone(result)
+    
+    def test_show_error_and_exit_with_custom_log_message(self):
+        """Test show_error_and_exit with custom log message"""
+        with patch.object(self.yd_menu, 'show_notification'), \
+             patch('sys.exit') as mock_exit:
+            
+            self.yd_menu.show_error_and_exit("Display message", "Log message")
+            
+            mock_exit.assert_called_once_with(Constants.EXIT_CODE_ERROR)
 
 
 if __name__ == '__main__':
