@@ -705,7 +705,10 @@ class CommandHandlers:
         
         # Publish the file with destination information
         dest_filename = os.path.basename(ya_disk_file_path)
-        self.yd_menu.publish_file(src_file_path, use_com, ya_disk_file_path, dest_filename)
+        
+        # Determine the correct path for notification (stream dir for outside files)
+        stream_file_path = f"{self.yd_menu.stream_dir}/{dest_filename}" if is_outside_file else ya_disk_file_path
+        self.yd_menu.publish_file(src_file_path, use_com, stream_file_path, dest_filename)
         
         # Get the published link from clipboard
         published_link = None
@@ -869,11 +872,11 @@ class CommandHandlers:
         """Handle publish commands, now supports directories as a whole (not recursively)"""
         use_com = command_type == 'PublishToYandexCom'
         dest_filename = os.path.basename(ya_disk_file_path)
-        self.yd_menu.publish_file(src_file_path, use_com, ya_disk_file_path, dest_filename)
-        if os.path.isdir(src_file_path):
-            self.yd_menu.show_notification(f"Published directory {self.yd_menu.format_file_link(ya_disk_file_path, dest_filename)}", Constants.TIMEOUT_SHORT)
-        else:
-            self.yd_menu.show_notification(f"Published file {self.yd_menu.format_file_link(ya_disk_file_path, dest_filename)}", Constants.TIMEOUT_SHORT)
+        
+        # Determine the correct path for notification (stream dir for outside files)
+        stream_file_path = f"{self.yd_menu.stream_dir}/{dest_filename}" if is_outside_file else ya_disk_file_path
+        self.yd_menu.publish_file(src_file_path, use_com, stream_file_path, dest_filename)
+
         # For outside files or directories, move to stream directory after publishing
         if is_outside_file:
             shutil.move(ya_disk_file_path, self.yd_menu.stream_dir)

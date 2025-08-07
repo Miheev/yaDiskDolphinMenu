@@ -82,7 +82,8 @@ class TestYandexDiskMenu(unittest.TestCase):
             args = mock_publish.call_args[0]
             self.assertEqual(args[0], test_dir)  # src_file_path
             self.assertEqual(args[1], True)      # use_com_domain
-            mock_notify.assert_called()
+            # Since publish_file is mocked, we don't expect show_notification to be called directly
+            # The notification is handled inside publish_file
 
     
     def setUp(self):
@@ -1116,7 +1117,32 @@ class TestCommandHandlers(unittest.TestCase):
             args = mock_publish.call_args[0]
             self.assertEqual(args[0], test_file)  # src_file_path
             self.assertEqual(args[1], True)       # use_com_domain
-            mock_notify.assert_called_once()
+            # Since publish_file is mocked, we don't expect show_notification to be called directly
+            # The notification is handled inside publish_file
+
+    def test_handle_publish_command_outside_file_shows_stream_path(self):
+        """Test that publish command for outside files shows stream directory path in notification"""
+        test_file = os.path.join(self.temp_dir, "test.txt")
+        with open(test_file, 'w') as f:
+            f.write('test')
+
+        # Mock the publish_file method to avoid actual publishing
+        with patch.object(self.yd_menu, 'publish_file') as mock_publish:
+            with patch.object(self.yd_menu, 'show_notification') as mock_notify:
+                with patch('shutil.move') as mock_move:
+                    self.processor.handlers.handle_publish_command('PublishToYandexCom', test_file, True, '/path/to/ya_disk/test.txt')
+
+                    # Verify that publish_file was called with the correct parameters
+                    mock_publish.assert_called_once()
+                    # Verify that publish_file was called with stream directory path as dest_file_path
+                    args = mock_publish.call_args[0]
+                    kwargs = mock_publish.call_args[1] if len(mock_publish.call_args) > 1 else {}
+                    
+                    # Check that the notification file path (3rd argument) uses stream directory
+                    if len(args) >= 3:
+                        notification_path = args[2]  # dest_file_path parameter
+                        self.assertIn(self.yd_menu.stream_dir, notification_path)
+                        self.assertNotIn('/path/to/ya_disk', notification_path)
     
     def test_log_file_info(self):
         """Test log_file_info method"""
