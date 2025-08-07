@@ -512,14 +512,14 @@ class YandexDiskMenu:
             
             if use_com_domain:                
                 # Copy HTML link to clipboard for rich text editors
-                self._copy_to_clipboard(self.format_url_link(com_link))
+                self._copy_to_clipboard(com_link)
                 message = (f"Published {file_display}\n"
                           f"Link copied to clipboard:\n"
                           f"{com_link_display}\n"
                           f"Alternative: {ru_link_display}")
             else:
                 # Copy HTML link to clipboard for rich text editors
-                self._copy_to_clipboard(self.format_url_link(publish_path))
+                self._copy_to_clipboard(publish_path)
                 message = (f"Published {file_display}\n"
                           f"Link copied to clipboard:\n"
                           f"{ru_link_display}\n"
@@ -1131,8 +1131,8 @@ class CommandProcessor:
         
         # Copy all collected links to clipboard at once
         if collected_links:
-            # Use HTML links for clipboard (will work in rich text editors)
-            all_links_html = '\n'.join(self.yd_menu.format_url_link(link) for link in collected_links)
+            # Use plain text links for clipboard
+            all_links_html = '\n'.join(link for link in collected_links)
             self.yd_menu._copy_to_clipboard(all_links_html)
             
             # Do not show multiple links notification if only one link is collected
