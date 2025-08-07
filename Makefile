@@ -1,6 +1,6 @@
 # Makefile for Yandex Disk Dolphin Menu - Python version management
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -39,6 +39,9 @@ install: install-deps  ## Install Python version dependencies
 
 configure:  ## Configure Python version (requires sudo)
 	$(PYTHON) setup.py
+
+configure-skip-env:  ## Configure Python version (requires sudo)
+	$(PYTHON) setup.py --skip-env
 
 test: install-deps  ## Run unit tests
 	$(PYTHON) -m pytest test_*.py -v

@@ -76,7 +76,9 @@ yaDiskDolphinMenu/
 
 # Then install Python version
 make install                    # Install Python dependencies  
-python setup.py --skip-env     # Setup Python (skip env vars, already set)
+make make configure-skip-env     # Setup Python (skip env vars, already set)
+# Alternatively run
+# python setup.py --skip-env
 ```
 
 ### Shell Version Only

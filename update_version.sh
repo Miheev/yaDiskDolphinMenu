@@ -138,7 +138,7 @@ run_make_configure() {
             exit 1
         fi
     else
-        make configure --skip-env
+        make configure-skip-env
     fi
     
     print_success "Desktop files regenerated successfully"

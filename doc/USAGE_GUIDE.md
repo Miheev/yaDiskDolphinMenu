@@ -38,7 +38,9 @@ python setup.py  # Configure Python version (requires sudo for env vars)
 
 # Then install Python version (skips env setup)
 make install
-python setup.py --skip-env  # Skip environment variables (already set)
+make configure-skip-env # Skip environment variables (already set)
+# Alternatively run
+# python setup.py --skip-env
 ```
 - Gets both desktop menus: **"YaDisk"** and **"YaDisk (Python)"**
 - Shared configuration and log files
@@ -72,7 +74,7 @@ After installation, right-click any file in Dolphin to see available options:
 ### Setting Up Development Environment
 ```bash
 # Install both versions for testing
-./setup.sh && make install && python setup.py --skip-env
+./setup.sh && make install && make configure-skip-env
 
 # Set up Python development environment
 make setup-dev
@@ -253,7 +255,7 @@ source /etc/environment
 ## Migration Strategy
 
 ### From Shell to Python
-1. Install Python version alongside shell: `make install && python setup.py --skip-env`
+1. Install Python version alongside shell: `make install && make configure-skip-env`
 2. Test Python version functionality
 3. Gradually switch to using Python menus
 4. Keep shell version as backup until confident

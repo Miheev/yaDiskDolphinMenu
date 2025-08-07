@@ -49,10 +49,10 @@ make configure        # Configure system integration (requires sudo)
 ./setup.sh
 
 # Python version only  
-make install && python setup.py
+make install && make configure
 
 # Both versions (recommended for development)
-./setup.sh && make install && python setup.py --skip-env
+./setup.sh && make install && make configure-skip-env
 ```
 
 ## Dependencies & Requirements
