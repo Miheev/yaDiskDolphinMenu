@@ -50,6 +50,7 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+.env.backup
 
 # Logs
 *.log
