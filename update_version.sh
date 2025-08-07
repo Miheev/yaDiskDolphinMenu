@@ -192,6 +192,7 @@ and regenerates all necessary configuration files."
     
     # Create commit
     if git commit -am "$commit_message"; then
+        git tag -a "v$new_version" -m "Python Application Version: $new_version"
         print_success "Git commit created successfully"
     else
         print_error "Failed to create git commit"
@@ -216,6 +217,7 @@ push_to_git() {
     
     # Push to remote
     if git push origin "$current_branch"; then
+        git push --tags
         print_success "Changes pushed to git repository successfully"
     else
         print_error "Failed to push to git repository"
