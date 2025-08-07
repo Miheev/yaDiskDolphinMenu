@@ -47,8 +47,7 @@ class TestYandexDiskMenu(unittest.TestCase):
         # Patch sync and notification
         with patch.object(self.yd_menu, "sync_yandex_disk", return_value="sync ok"), \
              patch.object(self.yd_menu, "show_notification") as mock_notify:
-            from ydmenu import _handle_file_add_to_stream_command
-            _handle_file_add_to_stream_command(self.yd_menu, test_dir)
+            self.yd_menu.handlers.handle_file_add_to_stream_command(test_dir)
             mock_copytree.assert_called_once_with(test_dir, dest_dir)
             mock_notify.assert_called()
 
@@ -58,8 +57,7 @@ class TestYandexDiskMenu(unittest.TestCase):
         dest_dir = os.path.join(self.stream_dir, "movedir")
         with patch.object(self.yd_menu, "sync_yandex_disk", return_value="sync ok"), \
              patch.object(self.yd_menu, "show_notification") as mock_notify:
-            from ydmenu import _handle_file_move_to_stream_command
-            _handle_file_move_to_stream_command(self.yd_menu, test_dir)
+            self.yd_menu.handlers.handle_file_move_to_stream_command(test_dir)
             mock_move.assert_called_once_with(test_dir, dest_dir)
             mock_notify.assert_called()
 
@@ -69,8 +67,7 @@ class TestYandexDiskMenu(unittest.TestCase):
         test_dir = os.path.join(self.temp_dir, "publishdir")
         with patch.object(self.yd_menu, "publish_file") as mock_publish, \
              patch.object(self.yd_menu, "show_notification") as mock_notify:
-            from ydmenu import _handle_publish_command
-            _handle_publish_command(self.yd_menu, "PublishToYandexCom", test_dir, False, "")
+            self.yd_menu.handlers.handle_publish_command("PublishToYandexCom", test_dir, False, "")
             mock_publish.assert_called_once_with(test_dir, True)
             mock_notify.assert_called()
 
@@ -328,8 +325,13 @@ class TestYandexDiskMenu(unittest.TestCase):
         mock_result = MagicMock()
         mock_result.stdout = "success"
         
+        # Create a test file that exists
+        test_file = os.path.join(self.temp_dir, 'test.txt')
+        with open(test_file, 'w') as f:
+            f.write('test')
+        
         with patch.object(self.yd_menu, '_run_command', return_value=mock_result):
-            result = self.yd_menu.unpublish_file("/path/to/file")
+            result = self.yd_menu.unpublish_file(test_file)
             self.assertEqual(result, "success")
     
     def test_generate_unique_filename_no_conflict(self):
@@ -736,7 +738,9 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
         main = getattr(ydmenu, 'main', None)
         assert main is not None, 'main not found in ydmenu after reload'
         import sys
-        with patch.object(sys.modules['ydmenu'], '_handle_clipboard_to_stream_command') as mock_clipboard:
+        with patch('ydmenu.YandexDiskMenu') as mock_yd_menu_class:
+            mock_yd_menu = MagicMock()
+            mock_yd_menu_class.return_value = mock_yd_menu
             runner = click.testing.CliRunner()
             result = runner.invoke(main, ['ClipboardToStream'])
             self.assertEqual(result.exit_code, 0)
