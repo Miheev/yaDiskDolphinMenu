@@ -21,6 +21,12 @@ try:
 except ImportError:
     PYCLIP_AVAILABLE = False
 
+try:
+    import click
+    CLICK_AVAILABLE = True
+except ImportError:
+    CLICK_AVAILABLE = False
+
 
 class Constants:
     """Centralized constants for the YaDisk menu application"""
@@ -316,7 +322,7 @@ class YandexDiskMenu:
             self.logger.debug(f"Command completed with return code: {result.returncode}")
             return result
             
-        except subprocess.TimeoutExpired as e:
+        except subprocess.TimeoutExpired:
             self.logger.error(f"Command timed out after {timeout}s: {' '.join(cmd)}")
             raise subprocess.CalledProcessError(Constants.EXIT_CODE_ERROR, cmd, f"Command timed out after {timeout}s")
         except subprocess.CalledProcessError as e:
@@ -700,7 +706,7 @@ class CommandHandlers:
         original_clipboard = None
         try:
             original_clipboard = self.yd_menu.clipboard.get_text()
-        except:
+        except Exception:
             pass
         
         # Publish the file with destination information
@@ -714,7 +720,7 @@ class CommandHandlers:
         published_link = None
         try:
             published_link = self.yd_menu.clipboard.get_text()
-        except:
+        except Exception:
             pass
         
         # Restore original clipboard content
@@ -1230,7 +1236,7 @@ class CommandProcessor:
         self.yd_menu.show_notification(f"<b>Unknown action {command_type}</b>.\n\nCheck the menu files in <b>{work_path}</b> for available actions.", Constants.TIMEOUT_ERROR, 'error')
         self.logger.warning(f"Unknown action: {command_type}")
 
-import click
+
 @click.command()
 @click.argument('command_type')
 @click.argument('file_paths', nargs=-1, required=False)
