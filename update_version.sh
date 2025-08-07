@@ -154,7 +154,7 @@ check_git_status() {
     fi
     
     # Check if there are uncommitted changes
-    if ! git diff-index --quiet HEAD --; then
+    if ! git status --short; then
         print_warning "There are uncommitted changes in the repository"
         print_status "Current git status:"
         git status --short
