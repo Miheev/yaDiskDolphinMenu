@@ -636,7 +636,11 @@ class YandexDiskMenu:
         """Generate unique filename to avoid conflicts"""
         file_path_obj = Path(file_path)
         
-        if file_name.startswith('.'):
+        if os.path.isdir(file_path):
+            # For directories, use the directory name without extension concept
+            file_name_part = file_name
+            ext_part = ''
+        elif file_name.startswith('.'):
             # Hidden file
             file_name_part = file_name
             ext_part = ''
