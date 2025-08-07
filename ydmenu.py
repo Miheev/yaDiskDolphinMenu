@@ -224,18 +224,49 @@ class YandexDiskMenu:
         """Log message using logging module with specified level"""
         getattr(self.logger, level.lower())(message)
             
+    def format_link_common(self, path: str, name: str, is_file_path: bool = False) -> str:
+        """Common utility function for formatting links with proper href and display name"""
+        if not path or not name:
+            return ""
+        
+        href_path = f"{path}" if is_file_path else path
+        return f"<a href=\"{href_path}\"><b>{name}</b></a>"
+    
     def format_file_path(self, file_path: str) -> str:
-        """Format file path for display - make file name bold"""
+        """Format file path for display with clickable link"""
         if not file_path:
             return ""
         file_name = os.path.basename(file_path)
-        return f"<b>{file_name}</b>"
+        return self.format_link_common(file_path, file_name, is_file_path=True)
     
-    def format_link(self, url: str) -> str:
-        """Format URL as clickable link"""
+    def format_file_link(self, file_path: str, display_name: str = None) -> str:
+        """Format file path with custom display name"""
+        if not file_path:
+            return ""
+        name = display_name or os.path.basename(file_path)
+        return self.format_link_common(file_path, name, is_file_path=True)
+    
+    def format_url_link(self, url: str, display_name: str = None) -> str:
+        """Format URL link with optional custom display name (replaces format_link and format_link_for_clipboard)"""
         if not url:
             return ""
-        return f"<b>{url}</b>"
+        name = display_name or url
+        return self.format_link_common(url, name, is_file_path=False)
+    
+    def format_links_summary(self, links: list, max_display: int = 3) -> str:
+        """Format multiple links for notification display"""
+        if not links:
+            return ""
+        
+        if len(links) <= max_display:
+            # Show all links with bold formatting
+            formatted_links = '\n'.join(f"<b>{link}</b>" for link in links)
+            return f"Links:\n{formatted_links}"
+        else:
+            # Show first few with count
+            formatted_links = '\n'.join(f"<b>{link}</b>" for link in links[:max_display])
+            remaining = len(links) - max_display
+            return f"Links ({len(links)} total):\n{formatted_links}\n... and {remaining} more (see clipboard)"
             
     def show_notification(self, message: str, timeout: int = None, icon_type: str = 'info') -> None:
         """Show KDE notification using kdialog"""
@@ -261,7 +292,7 @@ class YandexDiskMenu:
         error_msg = log_message or message
         self.logger.error(error_msg)
             
-        notification_msg = f"{message}\nSee <b>{self.log_file_path}</b> for details"
+        notification_msg = f"{message}\nSee {self.format_file_path(self.log_file_path)} for details"
         self.show_notification(notification_msg, Constants.TIMEOUT_ERROR, 'error')
         sys.exit(Constants.EXIT_CODE_ERROR)
     
@@ -455,9 +486,9 @@ class YandexDiskMenu:
         """Validate yandex-disk publish result for errors"""
         error_indicators = ['unknown publish error', 'unknown error', 'error:']
         if any(error in publish_path.lower() for error in error_indicators):
-            self.show_error_and_exit(f"<b>{publish_path}</b>", publish_path)
+            self.show_error_and_exit(f"{self.format_url_link(publish_path)}", publish_path)
     
-    def publish_file(self, file_path: str, use_com_domain: bool = True) -> None:
+    def publish_file(self, file_path: str, use_com_domain: bool = True, dest_file_path: str = None, dest_filename: str = None) -> None:
         """Publish file and copy link to clipboard"""
         try:
             result = self._run_command(['yandex-disk', 'publish', file_path], timeout=Constants.TIMEOUT_LONG)
@@ -471,21 +502,29 @@ class YandexDiskMenu:
             self.logger.info(com_link)
             
             # Show notification with formatted links
-            file_display = self.format_file_path(file_path)
-            com_link_display = self.format_link(com_link)
-            ru_link_display = self.format_link(publish_path)
+            # Use destination file path and filename if provided, otherwise use source file
+            if dest_file_path and dest_filename:
+                file_display = self.format_file_link(dest_file_path, dest_filename)
+            else:
+                file_display = self.format_file_path(file_path)
+            com_link_display = self.format_url_link(com_link)
+            ru_link_display = self.format_url_link(publish_path)
             
             if use_com_domain:                
-                self._copy_to_clipboard(com_link)
-                message = (f"Published {file_display} (.com link copied):\n"
+                # Copy HTML link to clipboard for rich text editors
+                self._copy_to_clipboard(self.format_url_link(com_link))
+                message = (f"Published {file_display}\n"
+                          f"Link copied to clipboard:\n"
                           f"{com_link_display}\n"
                           f"Alternative: {ru_link_display}")
             else:
-                self._copy_to_clipboard(publish_path)
-                message = (f"Published {file_display} (.ru link copied):\n"
+                # Copy HTML link to clipboard for rich text editors
+                self._copy_to_clipboard(self.format_url_link(publish_path))
+                message = (f"Published {file_display}\n"
+                          f"Link copied to clipboard:\n"
                           f"{ru_link_display}\n"
                           f"Alternative: {com_link_display}")
-            
+                
             self.show_notification(message, Constants.TIMEOUT_MEDIUM)
             
         except subprocess.CalledProcessError as e:
@@ -527,7 +566,7 @@ class YandexDiskMenu:
                 break
                 
             result = self.unpublish_file(current_file)
-            results.append(f"<b>{current_name}</b> - {result}")
+            results.append(f"{self.format_file_link(current_file, current_name)} - {result}")
             
             index += Constants.INCREMENT_STEP
         
@@ -660,8 +699,9 @@ class CommandHandlers:
         except:
             pass
         
-        # Publish the file
-        self.yd_menu.publish_file(src_file_path, use_com)
+        # Publish the file with destination information
+        dest_filename = os.path.basename(ya_disk_file_path)
+        self.yd_menu.publish_file(src_file_path, use_com, ya_disk_file_path, dest_filename)
         
         # Get the published link from clipboard
         published_link = None
@@ -693,16 +733,19 @@ class CommandHandlers:
                     dest_dir = os.path.join(self.yd_menu.stream_dir, base_name)
                     try:
                         shutil.copytree(src_file_path, dest_dir)
-                        copied_items.append(f"Directory: {src_file_path}")
+                        # Show destination path with origin filename
+                        copied_items.append(self.yd_menu.format_file_link(dest_dir, base_name))
                     except OSError as e:
                         if e.errno == errno.ENOTDIR:
                             shutil.copy2(src_file_path, dest_dir)
-                            copied_items.append(f"File: {src_file_path}")
+                            copied_items.append(self.yd_menu.format_file_link(dest_dir, base_name))
                         else:
                             raise
                 else:
+                    dest_file = os.path.join(self.yd_menu.stream_dir, file_name)
                     shutil.copy2(src_file_path, self.yd_menu.stream_dir)
-                    copied_items.append(f"File: {src_file_path}")
+                    # Show destination path with origin filename
+                    copied_items.append(self.yd_menu.format_file_link(dest_file, file_name))
                 
                 # Rename back for copy operations
                 rename_back()
@@ -716,14 +759,14 @@ class CommandHandlers:
         # Handle errors but don't exit - show what succeeded and what failed
         if errors and copied_items:
             # Some succeeded, some failed
-            error_details = '\n'.join(f"<b>{os.path.basename(fp)}</b>: {err}" for fp, err in errors[:3])
+            error_details = '\n'.join(self.yd_menu.format_link_common(fp, os.path.basename(fp), is_file_path=True) + f": {err}" for fp, err in errors[:3])
             if len(errors) > 3:
                 error_details += f"\n... and {len(errors) - 3} more errors"
             self.yd_menu.show_notification(f"Copied {len(copied_items)} items, {len(errors)} failed:\n{error_details}", 
                                          Constants.TIMEOUT_MEDIUM, 'warn')
         elif errors:
             # All failed
-            error_details = '\n'.join(f"<b>{os.path.basename(fp)}</b>: {err}" for fp, err in errors[:3])
+            error_details = '\n'.join(self.yd_menu.format_link_common(fp, os.path.basename(fp), is_file_path=True) + f": {err}" for fp, err in errors[:3])
             if len(errors) > 3:
                 error_details += f"\n... and {len(errors) - 3} more errors"
             self.yd_menu.show_notification(f"Copy failed for all items:\n{error_details}", Constants.TIMEOUT_ERROR, 'error')
@@ -731,13 +774,12 @@ class CommandHandlers:
         
         # Create notification message showing first 5 items with count of remaining - format file names
         if len(copied_items) > 5:
-            display_items = [item.replace("File: ", "").replace("Directory: ", "") for item in copied_items[:5]]
-            formatted_items = [f"<b>{os.path.basename(item)}</b>" for item in display_items]
+            formatted_items = copied_items[:5]
             remaining_count = len(copied_items) - 5
             display_message = '\n'.join(formatted_items) + f'\n... and {remaining_count} more items'
         else:
-            display_items = [item.replace("File: ", "").replace("Directory: ", "") for item in copied_items]
-            display_message = '\n'.join(f"<b>{os.path.basename(item)}</b>" for item in display_items)
+            formatted_items = copied_items
+            display_message = '\n'.join(formatted_items)
         
         success_msg = f"Copied {len(copied_items)} items to stream:\n{display_message}"
         success_msg += f"\n{sync_status}"
@@ -757,16 +799,19 @@ class CommandHandlers:
                     dest_dir = os.path.join(self.yd_menu.stream_dir, base_name)
                     try:
                         shutil.move(src_file_path, dest_dir)
-                        moved_items.append(f"Directory: {src_file_path}")
+                        # Show destination path with origin filename
+                        moved_items.append(self.yd_menu.format_file_link(dest_dir, base_name))
                     except OSError as e:
                         if e.errno == errno.ENOTDIR:
                             shutil.move(src_file_path, dest_dir)
-                            moved_items.append(f"File: {src_file_path}")
+                            moved_items.append(self.yd_menu.format_file_link(dest_dir, base_name))
                         else:
                             raise
                 else:
+                    dest_file = os.path.join(self.yd_menu.stream_dir, file_name)
                     shutil.move(src_file_path, self.yd_menu.stream_dir)
-                    moved_items.append(f"File: {src_file_path}")
+                    # Show destination path with origin filename
+                    moved_items.append(self.yd_menu.format_file_link(dest_file, file_name))
                 
                 # No rename back for move operations since file is moved
                 
@@ -779,14 +824,14 @@ class CommandHandlers:
         # Handle errors but don't exit - show what succeeded and what failed
         if errors and moved_items:
             # Some succeeded, some failed
-            error_details = '\n'.join(f"<b>{os.path.basename(fp)}</b>: {err}" for fp, err in errors[:3])
+            error_details = '\n'.join(self.yd_menu.format_link_common(fp, os.path.basename(fp), is_file_path=True) + f": {err}" for fp, err in errors[:3])
             if len(errors) > 3:
                 error_details += f"\n... and {len(errors) - 3} more errors"
             self.yd_menu.show_notification(f"Moved {len(moved_items)} items, {len(errors)} failed:\n{error_details}", 
                                          Constants.TIMEOUT_MEDIUM, 'warn')
         elif errors:
             # All failed
-            error_details = '\n'.join(f"<b>{os.path.basename(fp)}</b>: {err}" for fp, err in errors[:3])
+            error_details = '\n'.join(self.yd_menu.format_link_common(fp, os.path.basename(fp), is_file_path=True) + f": {err}" for fp, err in errors[:3])
             if len(errors) > 3:
                 error_details += f"\n... and {len(errors) - 3} more errors"
             self.yd_menu.show_notification(f"Move failed for all items:\n{error_details}", Constants.TIMEOUT_ERROR, 'error')
@@ -794,13 +839,12 @@ class CommandHandlers:
         
         # Create notification message showing first 5 items with count of remaining - format file names
         if len(moved_items) > 5:
-            display_items = [item.replace("File: ", "").replace("Directory: ", "") for item in moved_items[:5]]
-            formatted_items = [f"<b>{os.path.basename(item)}</b>" for item in display_items]
+            formatted_items = moved_items[:5]
             remaining_count = len(moved_items) - 5
             display_message = '\n'.join(formatted_items) + f'\n... and {remaining_count} more items'
         else:
-            display_items = [item.replace("File: ", "").replace("Directory: ", "") for item in moved_items]
-            display_message = '\n'.join(f"<b>{os.path.basename(item)}</b>" for item in display_items)
+            formatted_items = moved_items
+            display_message = '\n'.join(formatted_items)
         
         success_msg = f"Moved {len(moved_items)} items to stream:\n{display_message}"
         success_msg += f"\n{sync_status}"
@@ -820,11 +864,12 @@ class CommandHandlers:
                               is_outside_file: bool, ya_disk_file_path: str) -> None:
         """Handle publish commands, now supports directories as a whole (not recursively)"""
         use_com = command_type == 'PublishToYandexCom'
-        self.yd_menu.publish_file(src_file_path, use_com)
+        dest_filename = os.path.basename(ya_disk_file_path)
+        self.yd_menu.publish_file(src_file_path, use_com, ya_disk_file_path, dest_filename)
         if os.path.isdir(src_file_path):
-            self.yd_menu.show_notification(f"Published directory {src_file_path}", Constants.TIMEOUT_SHORT)
+            self.yd_menu.show_notification(f"Published directory {self.yd_menu.format_file_link(ya_disk_file_path, dest_filename)}", Constants.TIMEOUT_SHORT)
         else:
-            self.yd_menu.show_notification(f"Published file {src_file_path}", Constants.TIMEOUT_SHORT)
+            self.yd_menu.show_notification(f"Published file {self.yd_menu.format_file_link(ya_disk_file_path, dest_filename)}", Constants.TIMEOUT_SHORT)
         # For outside files or directories, move to stream directory after publishing
         if is_outside_file:
             shutil.move(ya_disk_file_path, self.yd_menu.stream_dir)
@@ -836,7 +881,7 @@ class CommandHandlers:
             sys.exit(Constants.EXIT_CODE_ERROR)
             
         sync_status = self.yd_menu.sync_yandex_disk()
-        self.yd_menu.show_notification(f"Clipboard flushed to stream:\n<b>{clip_dest_path}</b>\n{sync_status}", 
+        self.yd_menu.show_notification(f"Clipboard flushed to stream:\n{self.yd_menu.format_link_common(clip_dest_path, os.path.basename(clip_dest_path), is_file_path=True)}\n{sync_status}",
                                      Constants.TIMEOUT_SHORT)
         
         use_com = command_type == 'ClipboardPublishToCom'
@@ -848,10 +893,10 @@ class CommandHandlers:
         target_file = f"{self.yd_menu.stream_dir}/{file_name}" if is_outside_file else src_file_path
         result = self.yd_menu.unpublish_file(target_file)
         
-        if any(error in result.lower() for error in ['unknown error', 'error:']):
-            self.yd_menu.show_error_and_exit(f"{result} for <b>{target_file}</b>.", f"{result} - {file_name}")
-        
-        self.yd_menu.show_notification(f"{result} for <b>{file_name}</b>.", Constants.TIMEOUT_SHORT)
+        if result and 'error' in result.lower():
+            self.yd_menu.show_error_and_exit(f"{result} for {self.yd_menu.format_link_common(target_file, file_name, is_file_path=True)}.", f"{result} - {file_name}")
+        else:
+            self.yd_menu.show_notification(f"{result} for {self.yd_menu.format_link_common(target_file, file_name, is_file_path=True)}.", Constants.TIMEOUT_SHORT)
     
     def handle_unpublish_all_command(self, src_file_path: str, file_name: str, 
                                     file_dir: str, is_outside_file: bool) -> None:
@@ -872,7 +917,7 @@ class CommandHandlers:
             sys.exit(Constants.EXIT_CODE_ERROR)
             
         sync_status = self.yd_menu.sync_yandex_disk()
-        self.yd_menu.show_notification(f"Clipboard flushed to stream:\n<b>{clip_dest_path}</b>\n{sync_status}", 
+        self.yd_menu.show_notification(f"Clipboard flushed to stream:\n{self.yd_menu.format_link_common(clip_dest_path, os.path.basename(clip_dest_path), is_file_path=True)}\n{sync_status}", 
                                      Constants.TIMEOUT_MEDIUM)
     
     def handle_file_add_to_stream_command(self, src_file_path: str) -> None:
@@ -883,16 +928,19 @@ class CommandHandlers:
             dest_dir = os.path.join(self.yd_menu.stream_dir, base_name)
             try:
                 shutil.copytree(src_file_path, dest_dir)
-                msg = f"Directory <b>{src_file_path}</b> copied to stream as {dest_dir}."
+                # Show destination path with origin filename
+                msg = f"Directory {self.yd_menu.format_file_link(dest_dir, base_name)} copied to stream."
             except OSError as e:
                 if e.errno == errno.ENOTDIR:
                     shutil.copy2(src_file_path, dest_dir)
-                    msg = f"File <b>{src_file_path}</b> copied to stream."
+                    msg = f"File {self.yd_menu.format_file_link(dest_dir, base_name)} copied to stream."
                 else:
                     raise
         else:
+            dest_file = os.path.join(self.yd_menu.stream_dir, os.path.basename(src_file_path))
             shutil.copy2(src_file_path, self.yd_menu.stream_dir)
-            msg = f"File <b>{src_file_path}</b> copied to stream."
+            # Show destination path with origin filename
+            msg = f"File {self.yd_menu.format_file_link(dest_file, os.path.basename(src_file_path))} copied to stream."
         sync_status = self.yd_menu.sync_yandex_disk()
         self.yd_menu.show_notification(f"{msg}\n{sync_status}", Constants.TIMEOUT_SHORT)
     
@@ -904,16 +952,19 @@ class CommandHandlers:
             dest_dir = os.path.join(self.yd_menu.stream_dir, base_name)
             try:
                 shutil.move(src_file_path, dest_dir)
-                msg = f"Directory <b>{src_file_path}</b> moved to stream as {dest_dir}."
+                # Show destination path with origin filename
+                msg = f"Directory {self.yd_menu.format_file_link(dest_dir, base_name)} moved to stream."
             except OSError as e:
                 if e.errno == errno.ENOTDIR:
                     shutil.move(src_file_path, dest_dir)
-                    msg = f"File <b>{src_file_path}</b> moved to stream."
+                    msg = f"File {self.yd_menu.format_file_link(dest_dir, base_name)} moved to stream."
                 else:
                     raise
         else:
+            dest_file = os.path.join(self.yd_menu.stream_dir, os.path.basename(src_file_path))
             shutil.move(src_file_path, self.yd_menu.stream_dir)
-            msg = f"File <b>{src_file_path}</b> moved to stream."
+            # Show destination path with origin filename
+            msg = f"File {self.yd_menu.format_file_link(dest_file, os.path.basename(src_file_path))} moved to stream."
         sync_status = self.yd_menu.sync_yandex_disk()
         self.yd_menu.show_notification(f"{msg}\n{sync_status}", Constants.TIMEOUT_SHORT)
 
@@ -1073,22 +1124,17 @@ class CommandProcessor:
         
         # Copy all collected links to clipboard at once
         if collected_links:
-            all_links = '\n'.join(collected_links)
-            self.yd_menu._copy_to_clipboard(all_links)
+            # Use HTML links for clipboard (will work in rich text editors)
+            all_links_html = '\n'.join(self.yd_menu.format_url_link(link) for link in collected_links)
+            self.yd_menu._copy_to_clipboard(all_links_html)
             
             # Do not show multiple links notification if only one link is collected
             if len(collected_links) <= 1:
                 return
 
-            # Format the notification to show links properly
-            if len(collected_links) <= 3:
-                # Show all links if 3 or fewer
-                formatted_links = '\n'.join(self.yd_menu.format_link(link) for link in collected_links)
-                message = f"Published {len(collected_links)} of {len(file_paths)} items. All links copied:\n{formatted_links}"
-            else:
-                # Show first 3 links with count
-                formatted_links = '\n'.join(self.yd_menu.format_link(link) for link in collected_links[:3])
-                message = f"Published {len(collected_links)} of {len(file_paths)} items. All links copied:\n{formatted_links}\n... and {len(collected_links) - 3} more links"
+            # Use the new format_links_summary method for better display
+            links_summary = self.yd_menu.format_links_summary(collected_links, max_display=3)
+            message = f"Published {len(collected_links)} of {len(file_paths)} items.\nAll links copied to clipboard.\n\n{links_summary}"
             
             self.yd_menu.show_notification(message, Constants.TIMEOUT_MEDIUM)
         
@@ -1097,13 +1143,13 @@ class CommandProcessor:
             error_summary = f"Processed {processed_count} of {len(file_paths)} items. {len(errors)} failed."
             self.yd_menu.show_notification(error_summary, Constants.TIMEOUT_MEDIUM, 'warn')
             # Show detailed errors in separate notification
-            error_details = '\n'.join(f"<b>{os.path.basename(fp)}</b>: {err}" for fp, err in errors[:3])
+            error_details = '\n'.join(self.yd_menu.format_link_common(fp, os.path.basename(fp), is_file_path=True) + f": {err}" for fp, err in errors[:3])
             if len(errors) > 3:
                 error_details += f"\n... and {len(errors) - 3} more errors"
             self.yd_menu.show_notification(f"Errors occurred:\n{error_details}", Constants.TIMEOUT_ERROR, 'error')
         elif errors:
             # All items failed
-            error_details = '\n'.join(f"<b>{os.path.basename(fp)}</b>: {err}" for fp, err in errors[:3])
+            error_details = '\n'.join(self.yd_menu.format_link_common(fp, os.path.basename(fp), is_file_path=True) + f": {err}" for fp, err in errors[:3])
             if len(errors) > 3:
                 error_details += f"\n... and {len(errors) - 3} more errors"
             self.yd_menu.show_notification(f"All items failed:\n{error_details}", Constants.TIMEOUT_ERROR, 'error')
@@ -1156,7 +1202,7 @@ class CommandProcessor:
                 self.logger.error(f"Error parsing {file_path}: {e}")
         
         if errors:
-            error_details = '\n'.join(f"<b>{os.path.basename(fp)}</b>: {err}" for fp, err in errors[:3])
+            error_details = '\n'.join(self.yd_menu.format_link_common(fp, os.path.basename(fp), is_file_path=True) + f": {err}" for fp, err in errors[:3])
             if len(errors) > 3:
                 error_details += f"\n... and {len(errors) - 3} more errors"
             self.yd_menu.show_notification(f"Batch processing errors:\n{error_details}", Constants.TIMEOUT_ERROR, 'error')

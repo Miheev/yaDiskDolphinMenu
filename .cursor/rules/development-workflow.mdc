@@ -69,11 +69,28 @@ ydmenu-py-env ClipboardPublish
 
 ## Code Quality Standards
 
+### DRY and SOLID Principles
+
+#### DRY (Don't Repeat Yourself)
+- **Single Source of Truth**: Centralize common functionality in utility functions
+- **Eliminate Duplication**: Remove redundant code patterns and repeated logic
+- **Shared Constants**: Use Constants class for all hardcoded values
+- **Common Utilities**: Create reusable functions for formatting, validation, and processing
+
+#### SOLID Principles
+- **Single Responsibility**: Each class/function should have one reason to change
+- **Open/Closed**: Open for extension, closed for modification via inheritance/composition
+- **Liskov Substitution**: Derived classes must be substitutable for base classes
+- **Interface Segregation**: Many specific interfaces better than one general-purpose interface
+- **Dependency Inversion**: Depend on abstractions, not concretions
+
 ### Python Code
 - Use type hints: `def function(param: str) -> bool:`
 - Comprehensive error handling with logging
 - Mock external dependencies in tests
 - Follow existing class structure in [ydmenu.py](mdc:ydmenu.py)
+- Apply DRY principles: eliminate code duplication
+- Follow SOLID principles: maintain clean, extensible architecture
 
 ### Shell Code  
 - Maintain existing bash patterns

@@ -77,7 +77,11 @@ class TestYandexDiskMenu(unittest.TestCase):
             from ydmenu import CommandProcessor
             processor = CommandProcessor(self.yd_menu)
             processor.handlers.handle_publish_command("PublishToYandexCom", test_dir, False, "")
-            mock_publish.assert_called_once_with(test_dir, True)
+            # Check that publish_file was called with the expected parameters
+            mock_publish.assert_called_once()
+            args = mock_publish.call_args[0]
+            self.assertEqual(args[0], test_dir)  # src_file_path
+            self.assertEqual(args[1], True)      # use_com_domain
             mock_notify.assert_called()
 
     
@@ -461,7 +465,9 @@ class TestYandexDiskMenu(unittest.TestCase):
             
             result = self.yd_menu.unpublish_copies(self.temp_dir, test_file, "test.txt")
             
-            self.assertIn("<b>test.txt</b> - success", result)
+            self.assertIn("<a href=", result)
+            self.assertIn("test.txt", result)
+            self.assertIn("success", result)
             mock_unpublish.assert_called_once_with(test_file)
     
     def test_unpublish_copies_multiple_files(self):
@@ -483,9 +489,11 @@ class TestYandexDiskMenu(unittest.TestCase):
             
             # Should have called unpublish for each file
             self.assertEqual(mock_unpublish.call_count, 3)
-            self.assertIn("<b>test.txt</b> - success", result)
-            self.assertIn("<b>test_1.txt</b> - success", result)
-            self.assertIn("<b>test_2.txt</b> - success", result)
+            self.assertIn("<a href=", result)
+            self.assertIn("test.txt", result)
+            self.assertIn("test_1.txt", result)
+            self.assertIn("test_2.txt", result)
+            self.assertIn("success", result)
     
     def test_unpublish_file_missing_file(self):
         """Test unpublishing a file that doesn't exist"""
@@ -508,7 +516,12 @@ class TestYandexDiskMenu(unittest.TestCase):
         error_path = "unknown publish error occurred"
         with patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
             self.yd_menu._validate_publish_result(error_path)
-            mock_exit.assert_called_once_with(f"<b>{error_path}</b>", error_path)
+            # Check that show_error_and_exit was called with formatted URL and the error path
+            mock_exit.assert_called_once()
+            args = mock_exit.call_args[0]
+            self.assertIn("<a href=", args[0])
+            self.assertIn(error_path, args[0])
+            self.assertEqual(args[1], error_path)
     
     def test_validate_publish_result_success(self):
         """Test validation of publish result without error"""
@@ -592,10 +605,99 @@ class TestYandexDiskMenu(unittest.TestCase):
         result = self.yd_menu.format_file_path("")
         self.assertEqual(result, "")
     
-    def test_format_link_empty(self):
-        """Test format_link with empty URL"""
-        result = self.yd_menu.format_link("")
+    def test_format_file_path_with_link(self):
+        """Test format_file_path with file path to ensure proper link formatting"""
+        file_path = "/path/to/test.txt"
+        result = self.yd_menu.format_file_path(file_path)
+        expected = f"<a href=\"{file_path}\"><b>test.txt</b></a>"
+        self.assertEqual(result, expected)
+    
+    def test_format_link_common_file_path(self):
+        """Test format_link_common with file path"""
+        path = "/path/to/test.txt"
+        name = "test.txt"
+        result = self.yd_menu.format_link_common(path, name, is_file_path=True)
+        expected = f"<a href=\"{path}\"><b>{name}</b></a>"
+        self.assertEqual(result, expected)
+    
+    def test_format_link_common_url(self):
+        """Test format_link_common with URL"""
+        path = "https://example.com/test"
+        name = "Test Link"
+        result = self.yd_menu.format_link_common(path, name, is_file_path=False)
+        expected = f"<a href=\"{path}\"><b>{name}</b></a>"
+        self.assertEqual(result, expected)
+    
+    def test_format_link_common_empty_path(self):
+        """Test format_link_common with empty path"""
+        result = self.yd_menu.format_link_common("", "test", is_file_path=True)
         self.assertEqual(result, "")
+    
+    def test_format_link_common_empty_name(self):
+        """Test format_link_common with empty name"""
+        result = self.yd_menu.format_link_common("/path/to/test.txt", "", is_file_path=True)
+        self.assertEqual(result, "")
+    
+    def test_format_file_link(self):
+        """Test format_file_link with custom display name"""
+        file_path = "/path/to/test.txt"
+        display_name = "Custom Name"
+        result = self.yd_menu.format_file_link(file_path, display_name)
+        expected = f"<a href=\"{file_path}\"><b>{display_name}</b></a>"
+        self.assertEqual(result, expected)
+    
+    def test_format_file_link_default_name(self):
+        """Test format_file_link with default filename"""
+        file_path = "/path/to/test.txt"
+        result = self.yd_menu.format_file_link(file_path)
+        expected = f"<a href=\"{file_path}\"><b>test.txt</b></a>"
+        self.assertEqual(result, expected)
+    
+    def test_format_links_summary_empty(self):
+        """Test format_links_summary with empty list"""
+        result = self.yd_menu.format_links_summary([])
+        self.assertEqual(result, "")
+    
+    def test_format_links_summary_single_link(self):
+        """Test format_links_summary with single link"""
+        links = ["https://example.com/test"]
+        result = self.yd_menu.format_links_summary(links)
+        expected = "Links:\n<b>https://example.com/test</b>"
+        self.assertEqual(result, expected)
+    
+    def test_format_links_summary_multiple_links(self):
+        """Test format_links_summary with multiple links within limit"""
+        links = ["https://example.com/test1", "https://example.com/test2"]
+        result = self.yd_menu.format_links_summary(links, max_display=3)
+        expected = "Links:\n<b>https://example.com/test1</b>\n<b>https://example.com/test2</b>"
+        self.assertEqual(result, expected)
+    
+    def test_format_links_summary_with_overflow(self):
+        """Test format_links_summary with more links than max_display"""
+        links = ["https://example.com/test1", "https://example.com/test2", "https://example.com/test3", "https://example.com/test4"]
+        result = self.yd_menu.format_links_summary(links, max_display=2)
+        expected = "Links (4 total):\n<b>https://example.com/test1</b>\n<b>https://example.com/test2</b>\n... and 2 more (see clipboard)"
+        self.assertEqual(result, expected)
+    
+    def test_format_url_link_empty(self):
+        """Test format_url_link with empty URL"""
+        result = self.yd_menu.format_url_link("")
+        self.assertEqual(result, "")
+    
+    def test_format_url_link_with_url(self):
+        """Test format_url_link with URL to ensure proper HTML link formatting"""
+        url = "https://example.com/test"
+        result = self.yd_menu.format_url_link(url)
+        expected = f"<a href=\"{url}\"><b>{url}</b></a>"
+        self.assertEqual(result, expected)
+    
+    def test_format_url_link_with_custom_name(self):
+        """Test format_url_link with custom display name"""
+        url = "https://example.com/test"
+        display_name = "Test Link"
+        result = self.yd_menu.format_url_link(url, display_name)
+        expected = f"<a href=\"{url}\"><b>{display_name}</b></a>"
+        self.assertEqual(result, expected)
     
     def test_create_com_link_without_marker(self):
         """Test creating .com link when .sk marker is not present"""
@@ -795,10 +897,12 @@ class TestYandexDiskMenuIntegration(unittest.TestCase):
              patch('sys.exit') as mock_exit:
             # Mock clipboard content to avoid file system operations
             mock_clipboard.return_value = None
-            main_impl('ClipboardToStream', (), verbose=True)
+            mock_exit.side_effect = SystemExit(Constants.EXIT_CODE_ERROR)
+            with self.assertRaises(SystemExit):
+                main_impl('ClipboardToStream', (), verbose=True)
             mock_wait.assert_called_once()
             # Should exit when no clipboard content
-            mock_exit.assert_called_once()
+            mock_exit.assert_called_once_with(Constants.EXIT_CODE_ERROR)
 
     @patch.dict(os.environ, {'YA_DISK_ROOT': ''})  # Will be set in test
     @patch('ydmenu.YandexDiskMenu.wait_for_ready')
@@ -995,7 +1099,9 @@ class TestCommandHandlers(unittest.TestCase):
         """Test clipboard to stream when no content available"""
         with patch.object(self.yd_menu, 'get_clipboard_content', return_value=None), \
              patch('sys.exit') as mock_exit:
-            self.processor.handlers.handle_clipboard_to_stream_command()
+            mock_exit.side_effect = SystemExit(Constants.EXIT_CODE_ERROR)
+            with self.assertRaises(SystemExit):
+                self.processor.handlers.handle_clipboard_to_stream_command()
             mock_exit.assert_called_once_with(Constants.EXIT_CODE_ERROR)
     
     @patch('os.path.isdir', return_value=False)
@@ -1005,7 +1111,11 @@ class TestCommandHandlers(unittest.TestCase):
         with patch.object(self.yd_menu, 'publish_file') as mock_publish, \
              patch.object(self.yd_menu, 'show_notification') as mock_notify:
             self.processor.handlers.handle_publish_command('PublishToYandexCom', test_file, False, '')
-            mock_publish.assert_called_once_with(test_file, True)
+            # Check that publish_file was called with the expected parameters
+            mock_publish.assert_called_once()
+            args = mock_publish.call_args[0]
+            self.assertEqual(args[0], test_file)  # src_file_path
+            self.assertEqual(args[1], True)       # use_com_domain
             mock_notify.assert_called_once()
     
     def test_log_file_info(self):
