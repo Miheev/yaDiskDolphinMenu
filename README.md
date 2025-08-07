@@ -93,3 +93,28 @@ It creates scripts symlinks instead of copies (manual setup example)
 - Now __YaDisk__ menu group should be available as shown on the image
 - Enjoy!
 - Reconfigure via script or manually if needed
+
+## License
+
+This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License** (CC BY-NC 4.0).
+
+### What you can do:
+- ✅ **Share** — copy and redistribute the material in any medium or format
+- ✅ **Adapt** — remix, transform, and build upon the material
+- ✅ **Use for personal, educational, and non-commercial purposes**
+
+### What you cannot do:
+- ❌ **Commercial use** — You may not use the material for commercial purposes without written permission
+
+### Commercial Use:
+For any commercial use of this software, including but not limited to:
+- Use in commercial software or services
+- Distribution as part of commercial products  
+- Use in commercial environments or for commercial purposes
+- Integration into commercial applications
+
+**You MUST obtain written permission from the copyright holder.**
+
+For questions about commercial licensing, please contact the copyright holder.
+
+See [LICENSE](LICENSE) file for full terms and conditions.
