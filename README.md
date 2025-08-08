@@ -96,15 +96,17 @@ It creates scripts symlinks instead of copies (manual setup example)
 
 ## License
 
-This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License** (CC BY-NC 4.0).
+This project is licensed under the **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License** (CC BY-NC-SA 4.0).
 
 ### What you can do:
 - ✅ **Share** — copy and redistribute the material in any medium or format
 - ✅ **Adapt** — remix, transform, and build upon the material
 - ✅ **Use for personal, educational, and non-commercial purposes**
 
-### What you cannot do:
-- ❌ **Commercial use** — You may not use the material for commercial purposes without written permission
+### Conditions:
+- 🔗 **Attribution** — Provide appropriate credit and a link to the license
+- 🚫 **NonCommercial** — No commercial use without written permission
+- ♻️ **ShareAlike** — Derivatives must be licensed under CC BY-NC-SA 4.0
 
 ### Commercial Use:
 For any commercial use of this software, including but not limited to:
@@ -113,8 +115,8 @@ For any commercial use of this software, including but not limited to:
 - Use in commercial environments or for commercial purposes
 - Integration into commercial applications
 
-**You MUST obtain written permission from the copyright holder.**
+**Written permission is required for any commercial use.**
 
-For questions about commercial licensing, please contact the copyright holder.
+For commercial licensing inquiries, please open an issue: `https://github.com/Miheev/yaDiskDolphinMenu/issues`.
 
-See [LICENSE](LICENSE) file for full terms and conditions.
+See [LICENSE](LICENSE) for full terms and conditions.

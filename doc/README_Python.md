@@ -262,4 +262,6 @@ The Python version automatically uses its virtual environment when called via th
 
 ## License
 
-This project maintains the same license as the original shell script version.
+This project is licensed under the **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License** (CC BY-NC-SA 4.0). Derivative works must be distributed under the same license. Commercial use requires prior written permission from the copyright holder.
+
+See the root [LICENSE](../LICENSE) for full terms.
