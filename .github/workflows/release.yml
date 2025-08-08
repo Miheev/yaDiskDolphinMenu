@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.5.3 or 2.0.0-RC1)'
+        required: true
+      create_release:
+        description: 'Create GitHub Release after tagging'
+        required: false
+        default: 'true'
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  bump_and_tag:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps for build steps
+        run: |
+          make install
+
+      - name: Ensure .env exists
+        run: |
+          if [ ! -f .env ]; then
+            echo "YADISK_MENU_VERSION=${{ inputs.version }}" > .env
+          fi
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version, tag and push
+        env:
+          VERSION: ${{ inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x update_version.sh
+          ./update_version.sh "$VERSION"
+
+      - name: Create GitHub Release
+        if: ${{ inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  create_release_from_tag:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: notes
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          LAST_TAG="$(git describe --tags --abbrev=0 --exclude "$TAG" 2>/dev/null || true)"
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS="$(git log --oneline --reverse | head -10 | sed 's/^/• /')"
+            BODY="Initial release ${TAG}
+
+Changes since repository creation:
+${COMMITS}"
+          else
+            COMMITS="$(git log --oneline "${LAST_TAG}..${TAG}" | sed 's/^/• /')"
+            BODY="Release ${TAG}
+
+Changes since ${LAST_TAG}:
+${COMMITS}"
+          fi
+          {
+            echo "body<<'EOF'"
+            echo "$BODY"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.body }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
