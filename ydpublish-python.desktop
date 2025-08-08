@@ -70,6 +70,6 @@ Exec=ydmenu-py-env ClipboardToStream %F %k %c
 
 
 [Desktop Action VersionDisplay]
-Name=v1.6.1
+Name=v1.6.2
 Icon=/usr/share/yd-tools/icons/yd-128.png
 Exec=false
