@@ -103,7 +103,7 @@ class Constants:
 
 
 class ClipboardHandler:
-    """Simplified clipboard handler using pyclip as primary with xclip fallback"""
+    """Simplified clipboard handler using pyclip only (handles X11/Wayland internally)"""
     
     def __init__(self, logger):
         self.logger = logger
@@ -122,7 +122,7 @@ class ClipboardHandler:
             except Exception as e:
                 self.logger.warning(f"pyclip failed: {e}")
         
-        # pyclip not available or failed - return None for xclip fallback
+        # pyclip not available or failed
         return None
     
     def set_text(self, text: str) -> bool:
@@ -135,7 +135,7 @@ class ClipboardHandler:
             except Exception as e:
                 self.logger.warning(f"pyclip failed: {e}")
         
-        # pyclip not available or failed - return False for xclip fallback
+        # pyclip not available or failed
         return False
     
     def has_image(self) -> bool:
@@ -275,20 +275,36 @@ class YandexDiskMenu:
             return f"Links ({len(links)} total):\n{formatted_links}\n... and {remaining} more (see clipboard)"
             
     def show_notification(self, message: str, timeout: int = None, icon_type: str = 'info') -> None:
-        """Show KDE notification using kdialog"""
+        """Show desktop notification.
+        Prefers kdialog (KDE). Falls back to notify-send (GNOME/others). Logs if both unavailable.
+        """
         if timeout is None:
             timeout = Constants.TIMEOUT_SHORT
         icon = Constants.ICONS.get(icon_type, Constants.ICONS['info'])
         elapsed_time = int(time.time() - self.start_time)
         full_message = f"{message}\nTime: {elapsed_time}s"
-        
-        try:
-            subprocess.run([
-                'kdialog', '--icon', icon, '--title', Constants.TITLE,
-                '--passivepopup', full_message, str(timeout)
-            ], check=False, timeout=Constants.TIMEOUT_MEDIUM)
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            # Fallback to logging if kdialog not available or times out
+        def try_kdialog() -> bool:
+            try:
+                subprocess.run([
+                    'kdialog', '--icon', icon, '--title', Constants.TITLE,
+                    '--passivepopup', full_message, str(timeout)
+                ], check=False, timeout=Constants.TIMEOUT_MEDIUM)
+                return True
+            except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                return False
+
+        def try_notify_send() -> bool:
+            try:
+                timeout_ms = max(timeout * 1000, 1000)
+                subprocess.run([
+                    'notify-send', '-u', 'low', '-t', str(timeout_ms), '-i', icon,
+                    Constants.TITLE, full_message
+                ], check=False, timeout=Constants.TIMEOUT_MEDIUM)
+                return True
+            except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                return False
+
+        if not (try_kdialog() or try_notify_send()):
             self.logger.warning(f"NOTIFICATION: {full_message}")
         
         self.logger.info(message)
@@ -371,23 +387,11 @@ class YandexDiskMenu:
         )
     
     def _get_clipboard_image_type(self) -> Optional[str]:
-        """Check if clipboard contains image using native Python libraries with xclip fallback"""
-        # Try pyclip first
-        if self.clipboard.has_image():
-            return "image/png"  # Default to PNG for pyclip
-        
-        # Fall back to xclip for detailed image type detection
-        try:
-            result = self._run_command(['xclip', '-selection', 'clipboard', '-t', 'TARGETS', '-o'], 
-                                     timeout=Constants.TIMEOUT_SHORT, check=False)
-            return next((line.strip() for line in result.stdout.split('\n') 
-                        if line.strip().startswith('image')), None)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            self.logger.debug("xclip not available or no image in clipboard")
-            return None
+        """Check if clipboard contains image using pyclip only."""
+        return "image/png" if self.clipboard.has_image() else None
     
     def _save_clipboard_image(self, target_type: str, current_date: str) -> str:
-        """Save clipboard image to file using native Python libraries with xclip fallback"""
+        """Save clipboard image to file using pyclip image data"""
         extension = target_type.split('/')[Constants.SPLIT_INDEX_LAST] if '/' in target_type else Constants.DEFAULT_IMAGE_EXT
         full_path = f"{self.stream_dir}/{Constants.NOTE_FILE_PREFIX}{current_date}.{extension}"
         
@@ -402,33 +406,20 @@ class YandexDiskMenu:
             except IOError as e:
                 self.logger.warning(f"Failed to save image data from pyclip: {e}")
         
-        # Fall back to xclip
-        try:
-            with open(full_path, 'wb') as f:
-                subprocess.run(['xclip', '-selection', 'clipboard', '-t', target_type, '-o'],
-                              stdout=f, check=True)
-            
-            self.logger.info(f"Saved clipboard image to: {full_path} (using xclip fallback)")
-            return full_path
-        except (subprocess.CalledProcessError, FileNotFoundError, IOError) as e:
-            self.show_error_and_exit(f"Failed to save clipboard image: {e}")
-            return ""
+        # If pyclip did not provide image bytes, treat as failure
+        self.show_error_and_exit("Failed to save clipboard image: no image data available")
+        return ""
     
     def _get_clipboard_text(self) -> str:
-        """Get text content from clipboard using native Python libraries with xclip fallback"""
+        """Get text content from clipboard using pyclip only"""
         # Try pyclip first
         content = self.clipboard.get_text()
         if content:
             return content
         
-        # Fall back to xclip
-        try:
-            result = self._run_command(['xclip', '-selection', 'clipboard', '-o'], timeout=Constants.TIMEOUT_SHORT)
-            self.logger.debug("Retrieved text content from clipboard using xclip fallback")
-            return result.stdout
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            self.show_error_and_exit("Cannot access clipboard - all methods failed")
-            return ""
+        # If pyclip did not return text, consider clipboard inaccessible
+        self.show_error_and_exit("Cannot access clipboard - pyclip failed")
+        return ""
     
     def _create_filename_from_text(self, content: str, current_date: str) -> str:
         """Create sanitized filename from text content"""
@@ -443,7 +434,7 @@ class YandexDiskMenu:
         return f"{self.stream_dir}/{Constants.NOTE_FILE_PREFIX}{current_date}{name_summary}.{Constants.DEFAULT_TEXT_EXT}"
     
     def get_clipboard_content(self) -> Optional[str]:
-        """Get clipboard content using pyclip with xclip fallback"""
+        """Get clipboard content using pyclip only"""
         try:
             current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
@@ -471,18 +462,13 @@ class YandexDiskMenu:
             self.show_error_and_exit(f"Save clipboard error: {e}")
     
     def _copy_to_clipboard(self, text: str) -> None:
-        """Copy text to clipboard using native Python libraries with xclip fallback"""
+        """Copy text to clipboard using pyclip only"""
         # Try pyclip first
         if self.clipboard.set_text(text):
             return
         
-        # Fall back to xclip
-        try:
-            self._run_command(['xclip', '-selection', 'clipboard'], 
-                            timeout=Constants.TIMEOUT_SHORT, check=True, input=text)
-            self.logger.debug(f"Copied to clipboard using xclip fallback: {text}")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            self.show_error_and_exit("Cannot copy to clipboard - all methods failed")
+        # If pyclip could not copy, treat as failure
+        self.show_error_and_exit("Cannot copy to clipboard - pyclip failed")
     
     def _create_com_link(self, publish_path: str) -> str:
         """Convert .ru link to .com domain"""
