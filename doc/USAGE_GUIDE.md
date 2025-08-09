@@ -24,8 +24,9 @@ You can install either version independently or both together. Here's what each 
 
 #### Python Version Only (Modern)
 ```bash
-make install     # Install dependencies and check system
-python setup.py  # Configure Python version (requires sudo for env vars)
+apt install python3-venv   # install virtual environment support for python
+make install               # Install dependencies and check system
+make configure             # Configure Python version (requires sudo for env vars)
 ```
 - Creates virtual environment with dependencies
 - Creates desktop menu: **"YaDisk (Python)"**
@@ -37,6 +38,7 @@ python setup.py  # Configure Python version (requires sudo for env vars)
 ./setup.sh
 
 # Then install Python version (skips env setup)
+apt install python3-venv
 make install
 make configure-skip-env # Skip environment variables (already set)
 # Alternatively run
@@ -74,7 +76,7 @@ After installation, right-click any file in Dolphin to see available options:
 ### Setting Up Development Environment
 ```bash
 # Install both versions for testing
-./setup.sh && make install && make configure-skip-env
+./setup.sh && apt install python3-venv && make install && make configure-skip-env
 
 # Set up Python development environment
 make setup-dev
@@ -149,6 +151,7 @@ Shows:
 ### Updating
 ```bash
 # Update Python dependencies
+apt install python3-venv
 make install
 
 # Update Python setup
@@ -199,6 +202,7 @@ ls venv/bin/python
 ydmenu-py-env --help
 
 # Check dependencies
+apt install python3-venv
 make install
 ```
 
@@ -255,7 +259,7 @@ source /etc/environment
 ## Migration Strategy
 
 ### From Shell to Python
-1. Install Python version alongside shell: `make install && make configure-skip-env`
+1. Install Python version alongside shell: `apt install python3-venv && make install && make configure-skip-env`
 2. Test Python version functionality
 3. Gradually switch to using Python menus
 4. Keep shell version as backup until confident

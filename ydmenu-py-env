@@ -15,7 +15,7 @@ cd "$SCRIPT_DIR" || exit 1
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
     echo "Error: Virtual environment not found in $SCRIPT_DIR"
-    echo "Please run 'make install' or 'python setup.py' first"
+    echo "Please run 'make install' or 'make configure' first"
     exit 1
 fi
 

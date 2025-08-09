@@ -22,6 +22,7 @@ A modern Python rewrite of the Yandex Disk integration for KDE Dolphin file mana
 - **kdialog** - KDE dialog utility
 - **xclip** - X11 clipboard utility
 - **Python 3.8+**
+- **Python venv+** - python3-venv ubuntu package, naming can be different on other Linux distributives
 
 ### Python Dependencies
 - click >= 8.0.0
@@ -40,8 +41,11 @@ You can install either version independently or both together:
 ### Python Version Only
 ```bash
 # Install Python version with virtual environment
-make install     # Sets up venv and dependencies
-python setup.py  # Configure Python version (requires sudo for env vars)
+apt install python3-venv   # install virtual environment support for python
+make install               # Sets up venv and dependencies
+make configure             # Configure Python version (requires sudo for env vars)
+# Alternatively run
+# python setup.py
 
 # Or manually:
 python3 -m venv venv
@@ -57,8 +61,11 @@ python setup.py               # Full setup
 ./setup.sh
 
 # Then install Python version
+apt install python3-venv
 make install
-python setup.py --skip-env  # Skip env vars (already set by setup.sh)
+make configure-skip-env  # Skip env vars (already set by setup.sh)
+# Alternatively run
+# python setup.py --skip-env
 ```
 
 ### Custom Python Configuration

@@ -16,8 +16,8 @@ help:  ## Show this help message
 	@echo ""
 	@echo "Setup Options:"
 	@echo "  Shell only:     ./setup.sh"
-	@echo "  Python only:    make install && python setup.py"
-	@echo "  Both versions:  ./setup.sh && make install && python setup.py --skip-env"
+	@echo "  Python only:    apt install python3-venv && make install && make configure"
+	@echo "  Both versions:  ./setup.sh && apt install python3-venv && make install && make configure-skip-env"
 	@echo ""
 	@echo "Note: Python setup.py only handles Python files (ydmenu.py, ydpublish-python.desktop)"
 	@echo "      Shell setup.sh only handles shell files (ydmenu.sh, ydpublish.desktop)"
@@ -33,9 +33,10 @@ setup-dev: install-deps  ## Setup development environment
 	$(PIP) install -e .
 
 install: install-deps  ## Install Python version dependencies
+	# sudo apt install python3-venv
 	chmod +x ydmenu.py setup.py ydmenu-py-env
 	$(PYTHON) setup.py --check-deps
-	@echo "Run 'python setup.py' to complete Python version installation"
+	@echo "Run 'make configure' or 'python setup.py' to complete Python version installation"
 
 configure:  ## Configure Python version (requires sudo)
 	$(PYTHON) setup.py

@@ -75,8 +75,9 @@ yaDiskDolphinMenu/
 ./setup.sh
 
 # Then install Python version
+apt install python3-venv        # install virtual environment support for python
 make install                    # Install Python dependencies  
-make make configure-skip-env     # Setup Python (skip env vars, already set)
+make make configure-skip-env    # Setup Python (skip env vars, already set)
 # Alternatively run
 # python setup.py --skip-env
 ```
@@ -88,8 +89,11 @@ make make configure-skip-env     # Setup Python (skip env vars, already set)
 
 ### Python Version Only  
 ```bash
-make install                   # Install dependencies and check system
-python setup.py               # Full Python setup (requires sudo)
+apt install python3-venv      # install virtual environment support for python
+make install                  # Install dependencies and check system
+make make configure           # Full Python setup (requires sudo)
+# Alternatively run
+# python setup.py
 
 # Or manually:
 python setup.py --check-deps  # Check dependencies only
