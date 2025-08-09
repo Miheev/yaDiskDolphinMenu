@@ -20,15 +20,29 @@ A modern Python rewrite of the Yandex Disk integration for KDE Dolphin file mana
 - **KDE Linux** with Dolphin file manager
 - **yandex-disk** daemon installed and running
 - **kdialog** - KDE dialog utility
-- **xclip** - X11 clipboard utility
+- **Clipboard utilities**:
+  - **xclip** - For X11 environments
+  - **wl-clipboard** - For Wayland environments
 - **Python 3.8+**
 - **Python venv+** - python3-venv ubuntu package, naming can be different on other Linux distributives
 
 ### Python Dependencies
 - click >= 8.0.0
-- PyQt5 >= 5.15.0
+- pyclip >= 0.7.0 (automatically switches between xclip/wl-clipboard)
+- python-dotenv >= 1.0.0
 
 ## Installation
+
+### Automated System Dependencies
+
+Install system dependencies automatically based on your Linux distribution:
+```bash
+make install-system-deps  # Detects package manager and session type (X11/Wayland)
+```
+
+This will install appropriate packages for your distribution (APT/DNF/Pacman) and session type.
+
+### Installation Options
 
 You can install either version independently or both together:
 
@@ -41,7 +55,7 @@ You can install either version independently or both together:
 ### Python Version Only
 ```bash
 # Install Python version with virtual environment
-apt install python3-venv   # install virtual environment support for python
+make install-system-deps        # install virtual environment support for python, etc..
 make install               # Sets up venv and dependencies
 make configure             # Configure Python version (requires sudo for env vars)
 # Alternatively run
@@ -61,7 +75,7 @@ python setup.py               # Full setup
 ./setup.sh
 
 # Then install Python version
-apt install python3-venv
+make install-system-deps
 make install
 make configure-skip-env  # Skip env vars (already set by setup.sh)
 # Alternatively run
@@ -258,6 +272,23 @@ You can use either version as they both:
 - Log to the same file (`$YA_DISK_ROOT/yaMedia.log`)
 
 The Python version automatically uses its virtual environment when called via the `ydmenu-py-env` wrapper script from the desktop menu.
+
+## Technical Details
+
+### Clipboard Compatibility
+
+The Python version uses **pyclip** for clipboard operations, which automatically switches between:
+- **xclip** on X11 environments
+- **wl-clipboard** on Wayland environments
+
+This provides seamless cross-platform clipboard support without manual configuration. The bash version also supports both environments with automatic detection.
+
+### Environment Detection
+
+Both versions automatically detect:
+- **Display Server**: X11 vs Wayland (via `WAYLAND_DISPLAY` and `XDG_SESSION_TYPE`)
+- **Clipboard Tools**: Uses appropriate clipboard utility for the detected environment
+- **Notification System**: Prefers `kdialog` (KDE)
 
 ## Contributing
 

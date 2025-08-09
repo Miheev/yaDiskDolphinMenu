@@ -1,6 +1,6 @@
 # Makefile for Yandex Disk Dolphin Menu - Python version management
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -16,11 +16,43 @@ help:  ## Show this help message
 	@echo ""
 	@echo "Setup Options:"
 	@echo "  Shell only:     ./setup.sh"
-	@echo "  Python only:    apt install python3-venv && make install && make configure"
-	@echo "  Both versions:  ./setup.sh && apt install python3-venv && make install && make configure-skip-env"
+	@echo "  Python only:    make install-system-deps && make install && make configure"
+	@echo "  Both versions:  ./setup.sh && make install-system-deps && make install && make configure-skip-env"
 	@echo ""
 	@echo "Note: Python setup.py only handles Python files (ydmenu.py, ydpublish-python.desktop)"
 	@echo "      Shell setup.sh only handles shell files (ydmenu.sh, ydpublish.desktop)"
+
+install-system-deps:  ## Install system dependencies based on package manager and session type
+	@echo "Installing system dependencies..."
+	@IS_WAYLAND=$$([ -n "$$WAYLAND_DISPLAY" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ] && echo "1" || echo "0"); \
+	if [ "$$IS_WAYLAND" = "1" ]; then \
+		echo "Detected Wayland session"; \
+		CLIPBOARD_PKG_APT="wl-clipboard"; \
+		CLIPBOARD_PKG_DNF="wl-clipboard"; \
+		CLIPBOARD_PKG_PACMAN="wl-clipboard"; \
+		CLIPBOARD_NAME="wl-clipboard (for Wayland)"; \
+	else \
+		echo "Detected X11 session"; \
+		CLIPBOARD_PKG_APT="xclip"; \
+		CLIPBOARD_PKG_DNF="xclip"; \
+		CLIPBOARD_PKG_PACMAN="xclip"; \
+		CLIPBOARD_NAME="xclip (for X11)"; \
+	fi; \
+	if command -v apt >/dev/null 2>&1; then \
+		echo "Detected APT package manager (Debian/Ubuntu)"; \
+		sudo apt update; \
+		sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT; \
+	elif command -v dnf >/dev/null 2>&1; then \
+		echo "Detected DNF package manager (Fedora/Red Hat)"; \
+		sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF; \
+	elif command -v pacman >/dev/null 2>&1; then \
+		echo "Detected Pacman package manager (Arch Linux)"; \
+		sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN; \
+	else \
+		echo "Unknown package manager. Please install manually:"; \
+		echo "- python3-venv (or equivalent)"; \
+		echo "- $$CLIPBOARD_NAME"; \
+	fi
 
 $(VENV_DIR):  ## Create virtual environment
 	python3 -m venv $(VENV_DIR)
@@ -33,7 +65,7 @@ setup-dev: install-deps  ## Setup development environment
 	$(PIP) install -e .
 
 install: install-deps  ## Install Python version dependencies
-	# sudo apt install python3-venv
+	# if there is no python3-venv, run make install-system-deps
 	chmod +x ydmenu.py setup.py ydmenu-py-env
 	$(PYTHON) setup.py --check-deps
 	@echo "Run 'make configure' or 'python setup.py' to complete Python version installation"

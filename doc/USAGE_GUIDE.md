@@ -1,5 +1,22 @@
 # Yandex Disk Dolphin Menu - Usage Guide
 
+## System Requirements
+
+### Clipboard Support
+
+Both versions support **X11** and **Wayland** environments automatically:
+- **X11**: Uses `xclip` for clipboard operations
+- **Wayland**: Uses `wl-clipboard` for clipboard operations
+
+The Python version uses `pyclip` which automatically detects and switches between these tools based on your session type.
+
+### Automated Dependency Installation
+
+Install system dependencies for your distribution:
+```bash
+make install-system-deps  # Detects package manager (APT/DNF/Pacman) and session type
+```
+
 ## Quick Start
 
 ### Choose Your Installation Approach
@@ -24,7 +41,7 @@ You can install either version independently or both together. Here's what each 
 
 #### Python Version Only (Modern)
 ```bash
-apt install python3-venv   # install virtual environment support for python
+make install-system-deps        # install virtual environment support for python, etc..
 make install               # Install dependencies and check system
 make configure             # Configure Python version (requires sudo for env vars)
 ```
@@ -38,7 +55,7 @@ make configure             # Configure Python version (requires sudo for env var
 ./setup.sh
 
 # Then install Python version (skips env setup)
-apt install python3-venv
+make install-system-deps
 make install
 make configure-skip-env # Skip environment variables (already set)
 # Alternatively run
@@ -76,7 +93,7 @@ After installation, right-click any file in Dolphin to see available options:
 ### Setting Up Development Environment
 ```bash
 # Install both versions for testing
-./setup.sh && apt install python3-venv && make install && make configure-skip-env
+./setup.sh && make install-system-deps && make install && make configure-skip-env
 
 # Set up Python development environment
 make setup-dev
@@ -151,7 +168,7 @@ Shows:
 ### Updating
 ```bash
 # Update Python dependencies
-apt install python3-venv
+make install-system-deps
 make install
 
 # Update Python setup
@@ -202,7 +219,7 @@ ls venv/bin/python
 ydmenu-py-env --help
 
 # Check dependencies
-apt install python3-venv
+make install-system-deps
 make install
 ```
 
@@ -259,7 +276,7 @@ source /etc/environment
 ## Migration Strategy
 
 ### From Shell to Python
-1. Install Python version alongside shell: `apt install python3-venv && make install && make configure-skip-env`
+1. Install Python version alongside shell: `make install-system-deps && make install && make configure-skip-env`
 2. Test Python version functionality
 3. Gradually switch to using Python menus
 4. Keep shell version as backup until confident

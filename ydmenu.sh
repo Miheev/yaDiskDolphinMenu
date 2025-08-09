@@ -132,10 +132,25 @@ function waitForReady() {
 }
 
 
+# Check if current session is Wayland
+function is_wayland_session() {
+  [ -n "$WAYLAND_DISPLAY" ] || [ "$XDG_SESSION_TYPE" = "wayland" ]
+}
+
 # Save clipboard content to file
 function copyFromClipboard() {
   local currentDate=$(date '+%Y-%m-%d %H:%M:%S')
-  local targetType=$(xclip -selection clipboard -t TARGETS -o | grep -m1 ^image)
+  # Detect display session and select clipboard tool
+  local is_wayland=0
+  if is_wayland_session; then
+    is_wayland=1
+  fi
+  local targetType
+  if (( is_wayland )) && command -v wl-paste >/dev/null 2>&1; then
+    targetType=$(wl-paste --list-types | grep -m1 ^image/)
+  else
+    targetType=$(xclip -selection clipboard -t TARGETS -o | grep -m1 ^image)
+  fi
   local fullPath='note-'
 
   if [ -z $targetType ]; then
@@ -150,16 +165,30 @@ function copyFromClipboard() {
     # Linux bug: multi-byte handling to upstream coreutils, 2006 year
     # https://lists.gnu.org/archive/html/bug-coreutils/2006-07/msg00044.html
     # https://stackoverflow.com/questions/18700455/string-trimming-using-linux-cut-respecting-utf8-bondaries
-    local nameSummary=$(xclip -selection clipboard -o | head -1 | awk '{gsub(/([<>|\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 | iconv -c)
+    local clip_text
+    if (( is_wayland )) && command -v wl-paste >/dev/null 2>&1; then
+      clip_text=$(wl-paste)
+    else
+      clip_text=$(xclip -selection clipboard -o)
+    fi
+    local nameSummary=$(echo "$clip_text" | head -1 | awk '{gsub(/([<>|\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 | iconv -c)
     if [ ! -z "$nameSummary" ]; then
       nameSummary=" $nameSummary"
     fi
 
     fullPath="$streamDir/$fullPath$currentDate$nameSummary.txt"
-    xclip -selection clipboard -o > "$fullPath"
+    if (( is_wayland )) && command -v wl-paste >/dev/null 2>&1; then
+      wl-paste > "$fullPath"
+    else
+      xclip -selection clipboard -o > "$fullPath"
+    fi
   else
     fullPath="$streamDir/$fullPath$currentDate.$(basename $targetType)"
-    xclip -selection clipboard -t $targetType -o > "$fullPath"
+    if (( is_wayland )) && command -v wl-paste >/dev/null 2>&1; then
+      wl-paste --type "$targetType" > "$fullPath"
+    else
+      xclip -selection clipboard -t $targetType -o > "$fullPath"
+    fi
   fi
 
   (( $? )) && showException "Save clipboard error"
@@ -180,9 +209,17 @@ function publishWithComZone() {
   echo "$1"
   if (( $2 )); then
     echo "$publishPath"
-    echo "$comLink" | xclip -filter -selection clipboard
+    if is_wayland_session && command -v wl-copy >/dev/null 2>&1; then
+      printf '%s' "$comLink" | wl-copy
+    else
+      echo "$comLink" | xclip -filter -selection clipboard
+    fi
   else
-    echo "$publishPath" | xclip -filter -selection clipboard
+    if is_wayland_session && command -v wl-copy >/dev/null 2>&1; then
+      printf '%s' "$publishPath" | wl-copy
+    else
+      echo "$publishPath" | xclip -filter -selection clipboard
+    fi
     echo "$comLink"
   fi
 

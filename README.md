@@ -13,7 +13,7 @@
 Inspired by [yandex disk indicator](https://github.com/slytomcat/yandex-disk-indicator/wiki/Yandex-disk-indicator) context menu options
 
 ### Menu v1.6.4
-![Menu v1.6.4](https://raw.githubusercontent.com/Miheev/yaDiskDolphinMenu/main/doc/menu-v1.6.4-23.png)
+![Menu v1.6.4](https://raw.githubusercontent.com/Miheev/yaDiskDolphinMenu/main/doc/menu-v1.6.4-42.png)
 ### Overview
 ![Overview](https://raw.githubusercontent.com/Miheev/yaDiskDolphinMenu/main/doc/main-mix.png)
 
@@ -49,10 +49,17 @@ Set up shared directory access from primary to friendly account for such purpose
 
 
 ## Requirements
-- KDE Linux with Dolphin
-- [yandex-disk](https://yandex.com/support/disk-desktop-linux/) daemon installed and running
-- icons pack from [yd-tools](https://github.com/slytomcat/yandex-disk-indicator/doc/Yandex-disk-indicator) (after installation should be in /usr/share/yd-tools/icons)
-- Mix tools used in script (kdialog, awk, xclip, other common tools ..)
+
+### System Dependencies
+- **yandex-disk**: Yandex Disk daemon
+- **KDE/Dolphin**: KDE desktop environment with Dolphin file manager  
+- **Python 3**: Python 3.6 or higher
+- **python3-venv**: Virtual environment support
+- **kdialog**: KDE dialog utility
+- **Clipboard utilities**:
+  - **xclip**: For X11 environments
+  - **wl-clipboard**: For Wayland environments
+- **Icons pack**: From [yd-tools](https://github.com/slytomcat/yandex-disk-indicator/doc/Yandex-disk-indicator) (after installation should be in /usr/share/yd-tools/icons)
 
 Since current scripts created on top of yandex disk indicator, there is a good chance that it installs and set up some not listed dependencies.
 I'd rather suggest to install it anyway.
@@ -66,6 +73,19 @@ I'd rather suggest to install it anyway.
 
 
 ## Install & Setup
+
+### System Dependencies Installation
+
+Install system dependencies automatically based on your Linux distribution:
+```bash
+make install-system-deps  # Detects package manager and session type (X11/Wayland)
+```
+
+This will install:
+- Python virtual environment support
+- Appropriate clipboard tools (xclip for X11, wl-clipboard for Wayland)
+
+### Basic Setup
 - Install & configure [yandex-disk](https://yandex.com/support/disk-desktop-linux/) and [yd-tools](https://github.com/slytomcat/yandex-disk-indicator/wiki/Yandex-disk-indicator) as described in corresponding docs
 
 ### Setup via script
@@ -96,6 +116,15 @@ It creates scripts symlinks instead of copies (manual setup example)
 - Now __YaDisk__ menu group should be available as shown on the image
 - Enjoy!
 - Reconfigure via script or manually if needed
+
+## Technical Details
+
+### Clipboard Compatibility
+The Python version uses **pyclip** for clipboard operations, which automatically switches between:
+- **xclip** on X11 environments
+- **wl-clipboard** on Wayland environments
+
+This provides seamless cross-platform clipboard support without manual configuration.
 
 ## License
 

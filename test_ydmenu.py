@@ -552,21 +552,16 @@ class TestYandexDiskMenu(unittest.TestCase):
         """Test saving clipboard image when pyclip succeeds but file write fails"""
         image_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR'
         
-        # Mock the file operations to fail on the first call (pyclip) but succeed on second (xclip)
+        # Mock the file operations to fail - pyclip-only behavior should exit on error
         mock_file = mock_open()
-        mock_file.side_effect = [IOError("Permission denied"), mock_file.return_value]
+        mock_file.side_effect = IOError("Permission denied")
         
         with patch('pyclip.paste', return_value=image_data), \
              patch('builtins.open', mock_file), \
-             patch('subprocess.run') as mock_subprocess:
+             patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
             
-            # Should fall back to xclip
-            mock_subprocess.return_value = None
-            result = self.yd_menu._save_clipboard_image("image/png", "2023-01-01 12:00:00")
-            
-            # Should have tried pyclip first, then xclip
-            self.assertEqual(mock_file.call_count, 2)  # Called twice: pyclip fail, xclip success
-            mock_subprocess.assert_called_once()
+            self.yd_menu._save_clipboard_image("image/png", "2023-01-01 12:00:00")
+            mock_exit.assert_called_once()
     
     def test_save_clipboard_image_all_methods_fail(self):
         """Test saving clipboard image when all methods fail"""
@@ -577,23 +572,23 @@ class TestYandexDiskMenu(unittest.TestCase):
             self.yd_menu._save_clipboard_image("image/png", "2023-01-01 12:00:00")
             mock_exit.assert_called_once()
     
-    def test_get_clipboard_text_xclip_fallback_error(self):
-        """Test getting clipboard text when both pyclip and xclip fail"""
+    def test_get_clipboard_text_pyclip_error(self):
+        """Test getting clipboard text when pyclip fails"""
         with patch('pyclip.paste', return_value=None), \
              patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(1, 'xclip')), \
              patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
             
             self.yd_menu._get_clipboard_text()
-            mock_exit.assert_called_once_with("Cannot access clipboard - all methods failed")
+            mock_exit.assert_called_once_with("Cannot access clipboard - pyclip failed")
     
-    def test_copy_to_clipboard_all_methods_fail(self):
-        """Test copying to clipboard when both pyclip and xclip fail"""
+    def test_copy_to_clipboard_pyclip_fail(self):
+        """Test copying to clipboard when pyclip fails"""
         with patch('pyclip.copy', side_effect=Exception("pyclip failed")), \
              patch.object(self.yd_menu, '_run_command', side_effect=subprocess.CalledProcessError(1, 'xclip')), \
              patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
             
             self.yd_menu._copy_to_clipboard("test")
-            mock_exit.assert_called_once_with("Cannot copy to clipboard - all methods failed")
+            mock_exit.assert_called_once_with("Cannot copy to clipboard - pyclip failed")
     
     def test_format_file_path_empty(self):
         """Test format_file_path with empty path"""
@@ -1431,7 +1426,7 @@ class TestAdditionalCoverage(unittest.TestCase):
     
     def test_get_clipboard_image_type_pyclip_only(self):
         """Test clipboard image type detection with pyclip only"""
-        # Mock pyclip to not detect image
+        # Mock pyclip to not detect image - should return None since no xclip fallback
         with patch.object(self.yd_menu.clipboard, 'has_image', return_value=False), \
              patch.object(self.yd_menu, '_run_command') as mock_run:
             
@@ -1440,7 +1435,7 @@ class TestAdditionalCoverage(unittest.TestCase):
             mock_run.return_value = mock_result
             
             result = self.yd_menu._get_clipboard_image_type()
-            self.assertEqual(result, "image/png")
+            self.assertIsNone(result)
     
     def test_get_clipboard_image_type_no_image(self):
         """Test clipboard image type detection when no image is present"""

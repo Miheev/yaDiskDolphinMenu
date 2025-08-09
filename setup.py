@@ -53,7 +53,7 @@ class YandexDiskSetup:
     EXIT_CODE_ERROR = 1
     
     # Required system commands
-    REQUIRED_COMMANDS = ['yandex-disk', 'kdialog', 'xclip']
+    REQUIRED_COMMANDS = ['yandex-disk', 'kdialog', 'xclip', 'wl-clipboard']
     
     # Setup messages
     SETUP_PREFIX = "[SETUP]"
