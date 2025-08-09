@@ -242,8 +242,8 @@ class TestYandexDiskMenu(unittest.TestCase):
                 mock_paste.assert_any_call(text=True)
     
     @patch('pyclip.paste', side_effect=Exception("pyclip failed"))
-    def test_get_clipboard_content_text_xclip_fallback(self, mock_paste):
-        """Test getting text content from clipboard using xclip fallback"""
+    def test_get_clipboard_content_text_pyclip_error(self, mock_paste):
+        """Test getting text content from clipboard when pyclip fails"""
         # Mock xclip calls
         def run_side_effect(cmd, **kwargs):
             if 'TARGETS' in cmd:
@@ -258,13 +258,9 @@ class TestYandexDiskMenu(unittest.TestCase):
         
         with patch.object(self.yd_menu, '_run_command', side_effect=run_side_effect), \
              patch('builtins.open', mock_open()) as mock_file:
-            result = self.yd_menu.get_clipboard_content()
-            
-            # Should create a text file
-            self.assertTrue(result.endswith('.txt'))
-            mock_file.assert_called_once()
-            # pyclip gets called twice: once for image check, once for text, both fail
-            self.assertEqual(mock_paste.call_count, 2)
+            with patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
+                self.yd_menu.get_clipboard_content()
+                mock_exit.assert_called()
     
     @patch('pyclip.paste', return_value=b'\x89PNG\r\n\x1a\n')  # Mock PNG image data
     @patch('subprocess.run')
@@ -308,8 +304,8 @@ class TestYandexDiskMenu(unittest.TestCase):
             # Notification is now optional; do not assert show_notification
     
     @patch('pyclip.copy', side_effect=Exception("pyclip failed"))
-    def test_publish_file_success_xclip_fallback(self, mock_copy):
-        """Test successful file publishing with xclip fallback"""
+    def test_publish_file_success_pyclip_only_copy_error(self, mock_copy):
+        """Test publishing when pyclip copy fails (should error)"""
         # Mock yandex-disk publish response
         mock_result = MagicMock()
         mock_result.stdout = "https://yadi.sk/d/test123"
@@ -323,12 +319,10 @@ class TestYandexDiskMenu(unittest.TestCase):
             # First call is for yandex-disk publish, second is for xclip fallback
             mock_run_cmd.side_effect = [mock_result, MagicMock()]
             
-            self.yd_menu.publish_file(test_file, True)
-            
-            # Should try pyclip first (fails), then use xclip fallback
-            mock_copy.assert_called_once()
-            # Should call _run_command twice: once for publish, once for xclip
-            self.assertEqual(mock_run_cmd.call_count, 2)
+            with patch.object(self.yd_menu, 'show_error_and_exit') as mock_exit:
+                self.yd_menu.publish_file(test_file, True)
+                mock_copy.assert_called_once()
+                mock_exit.assert_called()
             
             # Should show success notification
             #mock_notify.assert_called_once()
@@ -1435,8 +1429,8 @@ class TestAdditionalCoverage(unittest.TestCase):
         self.assertNotIn("::", result)
         self.assertIn("note-2023-01-01 12:00:00", result)
     
-    def test_get_clipboard_image_type_xclip_fallback(self):
-        """Test clipboard image type detection with xclip fallback"""
+    def test_get_clipboard_image_type_pyclip_only(self):
+        """Test clipboard image type detection with pyclip only"""
         # Mock pyclip to not detect image
         with patch.object(self.yd_menu.clipboard, 'has_image', return_value=False), \
              patch.object(self.yd_menu, '_run_command') as mock_run:

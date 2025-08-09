@@ -13,7 +13,7 @@
 Inspired by [yandex disk indicator](https://github.com/slytomcat/yandex-disk-indicator/wiki/Yandex-disk-indicator) context menu options
 
 ### Menu v1.6.4
-![Menu v1.6.4](https://raw.githubusercontent.com/Miheev/yaDiskDolphinMenu/main/doc/menu-v1.6.4-22.png)
+![Menu v1.6.4](https://raw.githubusercontent.com/Miheev/yaDiskDolphinMenu/main/doc/menu-v1.6.4-23.png)
 ### Overview
 ![Overview](https://raw.githubusercontent.com/Miheev/yaDiskDolphinMenu/main/doc/main-mix.png)
 
