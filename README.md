@@ -6,8 +6,7 @@
 - [Migration Notes](doc/MIGRATION_SUMMARY.md)
 - [Usage Guide](doc/USAGE_GUIDE.md)
 
-> **⚠️ Note:**
-> The Bash version (`setup.sh`, `ydmenu.sh`) is no longer supported. New features (including `.env` support, advanced logging, conflict resolution, **multiple item processing**, and **optimized architecture**) are only available in the Python version (`setup.py`, `ydmenu.py`).
+> **Note:** The Python version is the recommended implementation. A lightweight GNOME (Files 48+) integration is provided via Nautilus Scripts, with optional Nemo/Caja actions.
 ### Yandex Disk integration for KDE Dolphin sub menu: use yandex cloud directory for sharing clipboard content and files between PC, mobile, people, etc..
 
 Inspired by [yandex disk indicator](https://github.com/slytomcat/yandex-disk-indicator/wiki/Yandex-disk-indicator) context menu options
@@ -85,6 +84,21 @@ This will install:
 - Python virtual environment support
 - Appropriate clipboard tools (xclip for X11, wl-clipboard for Wayland)
 
+### GNOME Integration (Files 48+)
+
+GNOME support is provided via Scripts-based integration (compatible with Nautilus/Files v48+):
+
+```bash
+make gnome-install   # installs scripts via symlinks
+make gnome-status    # shows installed scripts/actions
+make gnome-uninstall # removes scripts/actions
+```
+
+- Menu location: Files → Scripts → "YaDisk – ..."
+- Actions mirror Dolphin: Publish (COM/RU), Unpublish, Unpublish All Copies, Save Clipboard, Save & Publish Clipboard (COM/RU), Copy/Move to Stream
+- Nemo/Caja: optional actions installed if file manager is detected
+- Notifications: handled by core app (kdialog preferred; notify-send fallback)
+
 ### Basic Setup
 - Install & configure [yandex-disk](https://yandex.com/support/disk-desktop-linux/) and [yd-tools](https://github.com/slytomcat/yandex-disk-indicator/wiki/Yandex-disk-indicator) as described in corresponding docs
 
@@ -113,7 +127,7 @@ It creates scripts symlinks instead of copies (manual setup example)
 
 ### Finish setup
 - Logout & login
-- Now __YaDisk__ menu group should be available as shown on the image
+ - Now __YaDisk__ menu group should be available in Dolphin; in GNOME Files, see Scripts submenu
 - Enjoy!
 - Reconfigure via script or manually if needed
 

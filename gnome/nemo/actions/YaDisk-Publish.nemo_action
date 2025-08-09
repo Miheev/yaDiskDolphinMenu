@@ -1,0 +1,13 @@
+[Nemo Action]
+Name=YaDisk – Publish (COM)
+Comment=Publish file and copy .com link using YaDisk
+Exec=%S/yaDiskDolphinMenu/gnome/scripts/ydmenu-gnome-wrapper PublishToYandexCom %F
+Selection=any
+Extensions=any;
+Quote=double
+Icon-Name=folder-publicshare
+Dependencies=
+EscapeSpaces=true
+Active=true
+
+

@@ -49,6 +49,16 @@ make configure             # Configure Python version (requires sudo for env var
 - Creates desktop menu: **"YaDisk (Python)"**
 - Uses `ydmenu-py-env` wrapper for venv activation
 
+#### GNOME Integration (Files 48+)
+```bash
+make gnome-install   # Install Nautilus Scripts and optional Nemo/Caja actions
+make gnome-status    # Check scripts/actions presence and permissions
+make gnome-uninstall # Remove GNOME scripts/actions
+```
+- Files (Nautilus): Actions appear under the **Scripts** submenu as "YaDisk – ..."
+- Nemo/Caja: Actions appear in the context menu if the file manager is installed
+- Restart the file manager after installation: `nautilus -q`, `nemo -q`, or `caja -q`
+
 #### Both Versions (Recommended)
 ```bash
 # Install shell version first (sets environment variables)
@@ -67,7 +77,7 @@ make configure-skip-env # Skip environment variables (already set)
 
 ## Using the Context Menus
 
-After installation, right-click any file in Dolphin to see available options:
+After installation, right-click any file in Dolphin to see available options. In GNOME Files, use the **Scripts** submenu.
 
 ### Shell Version Menu: "YaDisk"
 - Direct shell script execution

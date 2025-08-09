@@ -1,6 +1,6 @@
 # Makefile for Yandex Disk Dolphin Menu - Python version management
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps gnome-install gnome-uninstall gnome-status
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -21,6 +21,11 @@ help:  ## Show this help message
 	@echo ""
 	@echo "Note: Python setup.py only handles Python files (ydmenu.py, ydpublish-python.desktop)"
 	@echo "      Shell setup.sh only handles shell files (ydmenu.sh, ydpublish.desktop)"
+	@echo ""
+	@echo "GNOME Scripts:"
+	@echo "  make gnome-install    Install GNOME/Nemo/Caja scripts (symlinks)"
+	@echo "  make gnome-uninstall  Remove GNOME/Nemo/Caja scripts"
+	@echo "  make gnome-status     Show GNOME scripts status"
 
 install-system-deps:  ## Install system dependencies based on package manager and session type
 	@echo "Installing system dependencies..."
@@ -141,6 +146,93 @@ uninstall:  ## Uninstall symlinks (keeps directories)
 	rm -f $(HOME)/.local/share/kio/servicemenus/ydpublish.desktop
 	rm -f $(HOME)/.local/share/kio/servicemenus/ydpublish-python.desktop
 	@echo "Uninstall complete. Original files preserved."
+
+GNOME_SCRIPTS_DIR := $(HOME)/.local/share/nautilus/scripts
+NEMO_ACTIONS_DIR := $(HOME)/.local/share/nemo/actions
+CAJA_ACTIONS_DIR := $(HOME)/.local/share/file-manager/actions
+
+gnome-install:  ## Install GNOME (Nautilus) Scripts and optional Nemo/Caja actions (symlinks)
+	@echo "Installing GNOME scripts..."
+	@mkdir -p "$(GNOME_SCRIPTS_DIR)"
+	@for f in gnome/scripts/*; do \
+	  [ -f "$$f" ] && chmod +x "$$f"; \
+	  if [ -f "$$f" ] && [ ! -L "$(GNOME_SCRIPTS_DIR)/$$(basename "$$f")" ]; then \
+	    ln -sf "$(PWD)/$$f" "$(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
+	    echo "Linked: $(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
+	  fi; \
+	done
+	@# Optional: Nemo actions
+	@if command -v nemo >/dev/null 2>&1; then \
+	  echo "Installing Nemo actions..."; \
+	  mkdir -p "$(NEMO_ACTIONS_DIR)"; \
+	  for f in gnome/nemo/actions/*.nemo_action; do \
+	    [ -f "$$f" ] || continue; \
+	    ln -sf "$(PWD)/$$f" "$(NEMO_ACTIONS_DIR)/$$(basename "$$f")"; \
+	    echo "Linked: $(NEMO_ACTIONS_DIR)/$$(basename "$$f")"; \
+	  done; \
+	else \
+	  echo "Nemo not detected; skipping Nemo actions."; \
+	fi
+	@# Optional: Caja actions
+	@if command -v caja >/dev/null 2>&1; then \
+	  echo "Installing Caja actions..."; \
+	  mkdir -p "$(CAJA_ACTIONS_DIR)"; \
+	  for f in gnome/caja/actions/*.desktop; do \
+	    [ -f "$$f" ] || continue; \
+	    ln -sf "$(PWD)/$$f" "$(CAJA_ACTIONS_DIR)/$$(basename "$$f")"; \
+	    echo "Linked: $(CAJA_ACTIONS_DIR)/$$(basename "$$f")"; \
+	  done; \
+	else \
+	  echo "Caja not detected; skipping Caja actions."; \
+	fi
+	@echo "GNOME scripts installation complete. Restart Files/Nemo/Caja to load changes."
+
+gnome-uninstall:  ## Remove GNOME (Nautilus) Scripts and optional Nemo/Caja actions
+	@echo "Removing GNOME scripts..."
+	@for f in gnome/scripts/*; do \
+	  [ -f "$$f" ] || continue; \
+	  rm -f "$(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
+	  echo "Removed: $(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
+	done
+	@echo "Removing Nemo actions..."
+	@for f in gnome/nemo/actions/*.nemo_action; do \
+	  [ -f "$$f" ] || continue; \
+	  rm -f "$(NEMO_ACTIONS_DIR)/$$(basename "$$f")"; \
+	  echo "Removed: $(NEMO_ACTIONS_DIR)/$$(basename "$$f")"; \
+	done
+	@echo "Removing Caja actions..."
+	@for f in gnome/caja/actions/*.desktop; do \
+	  [ -f "$$f" ] || continue; \
+	  rm -f "$(CAJA_ACTIONS_DIR)/$$(basename "$$f")"; \
+	  echo "Removed: $(CAJA_ACTIONS_DIR)/$$(basename "$$f")"; \
+	done
+	@echo "GNOME scripts uninstall complete."
+
+gnome-status:  ## Show GNOME scripts installation status
+	@echo "=== GNOME Scripts Status ==="
+	@for f in gnome/scripts/*; do \
+	  [ -f "$$f" ] || continue; \
+	  dest="$(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
+	  if [ -L "$$dest" ]; then echo "$$(basename "$$f"): ✓ Linked"; \
+	  elif [ -x "$$dest" ]; then echo "$$(basename "$$f"): ✓ Present (copied)"; \
+	  else echo "$$(basename "$$f"): ✗ Not installed"; fi; \
+	done
+	@echo "=== Nemo Actions ==="
+	@for f in gnome/nemo/actions/*.nemo_action; do \
+	  [ -f "$$f" ] || continue; \
+	  dest="$(NEMO_ACTIONS_DIR)/$$(basename "$$f")"; \
+	  if [ -L "$$dest" ]; then echo "$$(basename "$$f"): ✓ Linked"; \
+	  elif [ -f "$$dest" ]; then echo "$$(basename "$$f"): ✓ Present"; \
+	  else echo "$$(basename "$$f"): ✗ Not installed"; fi; \
+	done
+	@echo "=== Caja Actions ==="
+	@for f in gnome/caja/actions/*.desktop; do \
+	  [ -f "$$f" ] || continue; \
+	  dest="$(CAJA_ACTIONS_DIR)/$$(basename "$$f")"; \
+	  if [ -L "$$dest" ]; then echo "$$(basename "$$f"): ✓ Linked"; \
+	  elif [ -f "$$dest" ]; then echo "$$(basename "$$f"): ✓ Present"; \
+	  else echo "$$(basename "$$f"): ✗ Not installed"; fi; \
+	done
 
 status:  ## Show installation status
 	@echo "=== Installation Status ==="

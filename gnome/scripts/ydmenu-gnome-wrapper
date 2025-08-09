@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Wrapper to call ydmenu-py-env with normalized POSIX paths from GNOME-family file managers
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Locate selection helper (prefer sibling, then common subdir, then repo path)
+if [ -x "$SCRIPT_DIR/gnome_selection_to_paths.sh" ]; then
+  COMMON_SEL="$SCRIPT_DIR/gnome_selection_to_paths.sh"
+elif [ -x "$SCRIPT_DIR/common/gnome_selection_to_paths.sh" ]; then
+  COMMON_SEL="$SCRIPT_DIR/common/gnome_selection_to_paths.sh"
+else
+  COMMON_SEL="$ROOT_DIR/gnome/scripts/common/gnome_selection_to_paths.sh"
+fi
+[ -x "$COMMON_SEL" ] || { echo "Missing common selection helper: $COMMON_SEL" >&2; exit 1; }
+
+WRAPPER="$ROOT_DIR/ydmenu-py-env"
+[ -x "$WRAPPER" ] || { echo "Missing ydmenu-py-env wrapper: $WRAPPER" >&2; exit 1; }
+
+ACTION="${1:-}"
+shift || true
+
+if [ -z "$ACTION" ]; then
+  echo "Usage: $0 <ActionName>" >&2
+  exit 2
+fi
+
+if [ "$#" -gt 0 ]; then
+  # Use provided file paths directly (e.g., from Nemo %F)
+  "$WRAPPER" "$ACTION" "$@"
+else
+  # Collect selection from environment variables
+  mapfile -t SELECTION < <("$COMMON_SEL")
+  "$WRAPPER" "$ACTION" "${SELECTION[@]}"
+fi
+
+
