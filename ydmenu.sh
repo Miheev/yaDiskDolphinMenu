@@ -137,58 +137,83 @@ function is_wayland_session() {
   [ -n "$WAYLAND_DISPLAY" ] || [ "$XDG_SESSION_TYPE" = "wayland" ]
 }
 
-# Save clipboard content to file
-function copyFromClipboard() {
-  local currentDate=$(date '+%Y-%m-%d %H:%M:%S')
-  # Detect display session and select clipboard tool
-  local is_wayland=0
-  if is_wayland_session; then
-    is_wayland=1
-  fi
-  local targetType
-  if (( is_wayland )) && command -v wl-paste >/dev/null 2>&1; then
-    targetType=$(wl-paste --list-types | grep -m1 ^image/)
-  else
-    targetType=$(xclip -selection clipboard -t TARGETS -o | grep -m1 ^image)
-  fi
+# Generate a safe, short summary from text for filename suffix
+function generate_name_summary() {
+  local clip_text="$1"
+  echo "$clip_text" | head -1 | awk '{gsub(/([<>|\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 | iconv -c
+}
+
+# Save clipboard content to file (X11 implementation)
+function copyFromClipboardX11() {
+  local currentDate="$1"
+  local targetType=$(xclip -selection clipboard -t TARGETS -o | grep -m1 ^image)
   local fullPath='note-'
 
-  if [ -z $targetType ]; then
-    # Trim non-file character and form file name from note
-    # File name rules: https://www.cyberciti.biz/faq/linuxunix-rules-for-naming-file-and-directory-names/
-    # single quote: \047,
-    # & not listed for usability, but should be present as described in doc above
-    #
-    # Take name from note example
-    # nameSummary="as||d:< asdas?/*<, >, |, \, :, (, ), &, ;,*\ 'k\&fsldf' 047 7878667"; nameSummary=$( echo "${nameSummary//+([<>|\\:\/()&;,])/''}" | xargs | cut -c1-30 ); echo "=$nameSummary=";
-    #
-    # Linux bug: multi-byte handling to upstream coreutils, 2006 year
-    # https://lists.gnu.org/archive/html/bug-coreutils/2006-07/msg00044.html
-    # https://stackoverflow.com/questions/18700455/string-trimming-using-linux-cut-respecting-utf8-bondaries
-    local clip_text
-    if (( is_wayland )) && command -v wl-paste >/dev/null 2>&1; then
-      clip_text=$(wl-paste)
-    else
-      clip_text=$(xclip -selection clipboard -o)
-    fi
-    local nameSummary=$(echo "$clip_text" | head -1 | awk '{gsub(/([<>|\\;\/(),"\047])|(https?:)|(:)|( {2})|([ \.]+$)/,"")}1' | xargs | cut -c1-30 | iconv -c)
+  if [ -z "$targetType" ]; then
+    # Handle text content
+    local clip_text=$(xclip -selection clipboard -o)
+    local nameSummary=$(generate_name_summary "$clip_text")
     if [ ! -z "$nameSummary" ]; then
       nameSummary=" $nameSummary"
     fi
-
+    
     fullPath="$streamDir/$fullPath$currentDate$nameSummary.txt"
-    if (( is_wayland )) && command -v wl-paste >/dev/null 2>&1; then
-      wl-paste > "$fullPath"
-    else
-      xclip -selection clipboard -o > "$fullPath"
-    fi
+    xclip -selection clipboard -o > "$fullPath"
   else
+    # Handle image content
     fullPath="$streamDir/$fullPath$currentDate.$(basename $targetType)"
-    if (( is_wayland )) && command -v wl-paste >/dev/null 2>&1; then
-      wl-paste --type "$targetType" > "$fullPath"
-    else
-      xclip -selection clipboard -t $targetType -o > "$fullPath"
+    xclip -selection clipboard -t $targetType -o > "$fullPath"
+  fi
+  
+  echo "$fullPath"
+}
+
+# Save clipboard content to file (Wayland implementation)
+function copyFromClipboardWayland() {
+  local currentDate="$1"
+  local targetType=$(wl-paste --list-types | grep -m1 ^image/)
+  local fullPath='note-'
+
+  if [ -z "$targetType" ]; then
+    # Handle text content
+    local clip_text=$(wl-paste)
+    local nameSummary=$(generate_name_summary "$clip_text")
+    if [ ! -z "$nameSummary" ]; then
+      nameSummary=" $nameSummary"
     fi
+    
+    fullPath="$streamDir/$fullPath$currentDate$nameSummary.txt"
+    wl-paste > "$fullPath"
+  else
+    # Handle image content
+    fullPath="$streamDir/$fullPath$currentDate.$(basename $targetType)"
+    wl-paste --type "$targetType" > "$fullPath"
+  fi
+  
+  echo "$fullPath"
+}
+
+# Save clipboard content to file (action wrapper)
+function copyFromClipboard() {
+  local currentDate=$(date '+%Y-%m-%d %H:%M:%S')
+  local fullPath
+  
+  # Trim non-file character and form file name from note
+  # File name rules: https://www.cyberciti.biz/faq/linuxunix-rules-for-naming-file-and-directory-names/
+  # single quote: \047,
+  # & not listed for usability, but should be present as described in doc above
+  #
+  # Take name from note example
+  # nameSummary="as||d:< asdas?/*<, >, |, \, :, (, ), &, ;,*\ 'k\&fsldf' 047 7878667"; nameSummary=$( echo "${nameSummary//+([<>|\\:\/()&;,])/''}" | xargs | cut -c1-30 ); echo "=$nameSummary=";
+  #
+  # Linux bug: multi-byte handling to upstream coreutils, 2006 year
+  # https://lists.gnu.org/archive/html/bug-coreutils/2006-07/msg00044.html
+  # https://stackoverflow.com/questions/18700455/string-trimming-using-linux-cut-respecting-utf8-bondaries
+  
+  if is_wayland_session && command -v wl-paste >/dev/null 2>&1; then
+    fullPath=$(copyFromClipboardWayland "$currentDate")
+  else
+    fullPath=$(copyFromClipboardX11 "$currentDate")
   fi
 
   (( $? )) && showException "Save clipboard error"

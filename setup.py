@@ -52,8 +52,14 @@ class YandexDiskSetup:
     # Exit codes
     EXIT_CODE_ERROR = 1
     
-    # Required system commands
-    REQUIRED_COMMANDS = ['yandex-disk', 'kdialog', 'xclip', 'wl-clipboard']
+    # Required system commands (base)
+    REQUIRED_COMMANDS = ['yandex-disk']
+    
+    # Optional commands (at least one required from each group)
+    OPTIONAL_COMMANDS = {
+        'dialog': ['kdialog', 'notify-send'],  # KDE or GNOME notification
+        'clipboard': ['xclip', 'wl-clipboard']  # X11 or Wayland clipboard
+    }
     
     # Setup messages
     SETUP_PREFIX = "[SETUP]"
@@ -324,19 +330,39 @@ class YandexDiskSetup:
         """Verify system dependencies are available"""
         self.print_status("Verifying system dependencies")
         
-        required_commands = self.REQUIRED_COMMANDS
-        missing_commands = []
-        
-        for cmd in required_commands:
+        # Check required commands
+        missing_required = []
+        for cmd in self.REQUIRED_COMMANDS:
             if not shutil.which(cmd):
-                missing_commands.append(cmd)
+                missing_required.append(cmd)
         
-        if missing_commands:
-            self.print_status(f"Missing required commands: {', '.join(missing_commands)}")
+        # Check optional command groups (at least one from each group)
+        missing_groups = {}
+        for group_name, commands in self.OPTIONAL_COMMANDS.items():
+            available = [cmd for cmd in commands if shutil.which(cmd)]
+            if not available:
+                missing_groups[group_name] = commands
+        
+        # Report issues
+        if missing_required or missing_groups:
+            if missing_required:
+                self.print_status(f"Missing required commands: {', '.join(missing_required)}")
+            
+            if missing_groups:
+                for group_name, commands in missing_groups.items():
+                    self.print_status(f"Missing {group_name} tools (need at least one): {', '.join(commands)}")
+            
             self.print_status("Please install the missing dependencies:")
             self.print_status("- yandex-disk: Yandex Disk daemon")
-            self.print_status("- kdialog: KDE dialog utility") 
-            self.print_status("- xclip: X11 clipboard utility")
+            if 'dialog' in missing_groups:
+                self.print_status("- kdialog (KDE) OR notify-send (GNOME): Notification utility")
+            if 'clipboard' in missing_groups:
+                # Detect session type for better guidance
+                import os
+                if os.environ.get('WAYLAND_DISPLAY') or os.environ.get('XDG_SESSION_TYPE') == 'wayland':
+                    self.print_status("- wl-clipboard: Wayland clipboard utility")
+                else:
+                    self.print_status("- xclip: X11 clipboard utility")
             return False
         
         self.print_status("All system dependencies are available")
