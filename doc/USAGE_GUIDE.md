@@ -54,7 +54,7 @@ make configure             # Configure Python version (requires sudo for env var
 - Creates desktop menu: **"YaDisk (Python)"**
 - Uses `ydmenu-py-env` wrapper for venv activation
 
-#### GNOME Integration (Files 48+)
+#### GNOME Integration (Files 48+) [Beta]
 ```bash
 make gnome-install   # Install Nautilus Scripts and optional Nemo/Caja actions
 make gnome-status    # Check scripts/actions presence and permissions
@@ -63,7 +63,7 @@ make gnome-ext-install   # Optional: install Nautilus Python extension (python3-
 make gnome-ext-status    # Check extension presence
 make gnome-ext-uninstall # Remove Nautilus extension
 ```
-- Files (Nautilus): Actions appear under the **Scripts** submenu as "YaDisk – ..."
+- Files (Nautilus): Actions appear under the **Scripts** submenu as "YaDisk – ..." (beta; requires broader testing)
 - Nemo/Caja: Actions appear in the context menu if the file manager is installed
 - Restart the file manager after installation: `nautilus -q`, `nemo -q`, or `caja -q`
 

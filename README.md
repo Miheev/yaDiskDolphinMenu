@@ -84,9 +84,9 @@ This will install:
 - Python virtual environment support
 - Appropriate clipboard tools (xclip for X11, wl-clipboard for Wayland)
 
-### GNOME Integration (Files 48+)
+### GNOME Integration (Files 48+) [Beta]
 
-GNOME support is provided via Scripts-based integration (compatible with Nautilus/Files v48+):
+GNOME support is provided via Scripts-based integration (compatible with Nautilus/Files v48+). This integration is in beta and needs broader testing across distros and versions:
 
 ```bash
 make gnome-install   # installs scripts via symlinks
