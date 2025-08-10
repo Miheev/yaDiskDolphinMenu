@@ -3,7 +3,7 @@
 # Include GNOME-family file manager targets
 -include gnome/Makefile.gnome
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps _configure-base _configure-gnome-extensions
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps _configure-base _configure-gnome-extensions _configure-desktop
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -101,6 +101,12 @@ install: install-deps  ## Install Python version dependencies
 	@echo "Run 'make configure' or 'python setup.py' to complete Python version installation"
 
 configure:  ## Configure Python version with desktop-aware installation (requires sudo)
+	@$(MAKE) --no-print-directory _configure-desktop
+
+configure-skip-env:  ## Configure Python version with desktop-aware installation, skip env setup (requires sudo)
+	@SKIP_ENV=1 $(MAKE) --no-print-directory _configure-desktop
+
+_configure-desktop: ## Internal: Desktop detection + configuration (reads SKIP_ENV)
 	@echo "Detecting desktop environment..."
 	@DESKTOP_ENV="$$XDG_CURRENT_DESKTOP$$DESKTOP_SESSION"; \
 	IS_GNOME=$$(echo "$$DESKTOP_ENV" | grep -Eqi "gnome|unity|ubuntu:gnome" && echo 1 || echo 0); \
@@ -117,26 +123,6 @@ configure:  ## Configure Python version with desktop-aware installation (require
 	else \
 	  echo "Unknown desktop environment ($$DESKTOP_ENV) - using universal configuration"; \
 	  $(MAKE) --no-print-directory _configure-base; \
-	  echo "Universal configuration complete. Manual file manager integration may be required."; \
-	fi
-
-configure-skip-env:  ## Configure Python version with desktop-aware installation, skip env setup (requires sudo)
-	@echo "Detecting desktop environment..."
-	@DESKTOP_ENV="$$XDG_CURRENT_DESKTOP$$DESKTOP_SESSION"; \
-	IS_GNOME=$$(echo "$$DESKTOP_ENV" | grep -Eqi "gnome|unity|ubuntu:gnome" && echo 1 || echo 0); \
-	IS_KDE=$$(echo "$$DESKTOP_ENV" | grep -Eqi "kde|plasma" && echo 1 || echo 0); \
-	if [ "$$IS_KDE" = "1" ]; then \
-	  echo "KDE desktop detected - configuring for Dolphin (skip env)"; \
-	  SKIP_ENV=1 $(MAKE) --no-print-directory _configure-base; \
-	  echo "KDE configuration complete. YaDisk menu available in Dolphin."; \
-	elif [ "$$IS_GNOME" = "1" ]; then \
-	  echo "GNOME desktop detected - configuring for GNOME file managers (skip env)"; \
-	  SKIP_ENV=1 SKIP_KDE=1 $(MAKE) --no-print-directory _configure-base; \
-	  $(MAKE) --no-print-directory _configure-gnome-extensions; \
-	  echo "GNOME configuration complete."; \
-	else \
-	  echo "Unknown desktop environment ($$DESKTOP_ENV) - using universal configuration (skip env)"; \
-	  SKIP_ENV=1 $(MAKE) --no-print-directory _configure-base; \
 	  echo "Universal configuration complete. Manual file manager integration may be required."; \
 	fi
 

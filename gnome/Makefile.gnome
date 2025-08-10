@@ -193,27 +193,6 @@ gnome-ext-status: ## Show all Python extension installation status
 	  echo "Caja extension: ✗ Not installed"; \
 	fi
 
-# ===== Legacy individual targets for backwards compatibility =====
-
-thunar-uninstall: ## Remove YaDisk Thunar actions (use gnome-uninstall instead)
-	@echo "Note: Use 'make gnome-uninstall' to remove all scripts/actions"
-	@echo "Removing Thunar actions..."
-	@if [ -f "$(THUNAR_UCA)" ]; then \
-	  awk 'BEGIN{del=0} /<!-- YADISK-START -->/{del=1} !del{print} /<!-- YADISK-END -->/{del=0}' "$(THUNAR_UCA)" > "$(THUNAR_UCA).tmp" && mv "$(THUNAR_UCA).tmp" "$(THUNAR_UCA)"; \
-	  echo "  Removed Thunar actions from $(THUNAR_UCA)"; \
-	else \
-	  echo "  Thunar configuration file not found."; \
-	fi
-
-thunar-status: ## Show Thunar custom actions status (use gnome-status instead)
-	@echo "Note: Use 'make gnome-status' to see all scripts/actions status"
-	@echo "=== Thunar Actions Status ==="
-	@if [ -f "$(THUNAR_UCA)" ] && grep -q "YADISK-START" "$(THUNAR_UCA)"; then \
-	  echo "Thunar actions: ✓ Present"; \
-	else \
-	  echo "Thunar actions: ✗ Not installed"; \
-	fi
-
 # ===== Help =====
 
 gnome-help: ## Show GNOME integration help
@@ -230,6 +209,3 @@ gnome-help: ## Show GNOME integration help
 	@echo "  make gnome-ext-uninstall Remove Python extensions from all file managers"
 	@echo "  make gnome-ext-status   Show Python extensions status for all file managers"
 	@echo ""
-	@echo "Legacy Individual Targets:"
-	@echo "  make thunar-uninstall   Remove Thunar custom actions"
-	@echo "  make thunar-status      Show Thunar custom actions status"

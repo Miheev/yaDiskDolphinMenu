@@ -19,6 +19,17 @@ This guide provides detailed installation examples, file manager-specific setup,
 **🔧 Granular control:** Use individual component commands (`gnome-install`, `gnome-ext-install`)  
 **🚫 Existing config:** Use skip environment variables (`make configure-skip-env`)
 
+
+## 🔧 Installation Options Comparison
+
+| Method | Speed | Features | When to Use |
+|--------|-------|----------|-------------|
+| **Auto-detect** (`make configure`) | Fast | Auto-detects your environment | **Recommended** - Optimized setup, good for quick start |
+| **Skip environment variables** (`make configure-skip-env`) | Fast | Auto-detects your environment | Good for update existing setup after get recent update, e.g. git pull |
+| **Shell only (KDE)** (`./setup.sh`) | Fastest | Basic features, minimal deps | Lightweight systems, KDE only |
+| **Manual components** | Slower | Full control over components | Troubleshooting, custom setups |
+
+
 ## 🖥️ File Manager-Specific Installation
 
 ### KDE Dolphin (Primary Support)
@@ -38,7 +49,7 @@ make install && make configure  # Auto-detects KDE and configures for Dolphin
 
 ---
 
-### GNOME Nautilus (Files) [Beta]
+### GNOME/GTK: Files/Nautilus, Caja (MATE), Nemo (Cinnamon), Thunar (XFCE)
 
 > **💡 Integration Types**: 
 > - **`make gnome-install`** - Scripts/actions integration (works everywhere, basic functionality)
@@ -54,103 +65,22 @@ make install && make configure  # Auto-detects GNOME and configures all file man
 make install && make configure-skip-env
 ```
 
-**Manual Granular Installation:**
+For manual control you can use component commands:
 ```bash
-# 1. Basic scripts installation (works everywhere)
-make gnome-install  # Installs Nautilus scripts
-
-# 2. Enhanced Python extension (if python3-nautilus available)
-make gnome-ext-install  # Requires python3-nautilus package
-
-# 3. Restart file manager
-nautilus -q
+make gnome-install        # 1 Scripts/actions for GNOME file managers
+make gnome-ext-install    # 2 Optional Python extensions when supported
+make gnome-status         # 3 Check scripts/actions status
+make gnome-ext-status     # 4 Check extensions status
+nautilus -q               # 5 Restart file manager
+caja -q
+nemo -q
 ```
+
+**Note:** Thunar uses custom actions (XML), not Python extensions.
 
 **Menu Locations:**
 - **Scripts**: Files → Scripts → "YaDisk – ..." (always available)
 - **Extension**: Right-click context menu → "YaDisk" (enhanced integration)
-
-**Dependencies:**
-- **Scripts**: `libnotify-bin` (notifications)
-- **Extension**: `python3-nautilus`, `python3-gi`, `gir1.2-gtk-3.0`
-
----
-
-### Nemo (Cinnamon) [Beta]
-
-**Setup:**
-```bash
-make install-system-deps  # Install dependencies
-make install && make configure  # Auto-detects Nemo
-
-# Optional: Python extension
-sudo apt install python3-nemo  # If available
-make nemo-ext-install
-nemo -q  # Restart Nemo
-```
-
-**Manual Commands:**
-```bash
-# Actions only
-make gnome-install  # Installs .nemo_action files
-
-# Check status
-make nemo-ext-status
-```
-
-**Menu Location:** Right-click context menu → "YaDisk – ..."
-
----
-
-### Caja (MATE) [Beta]
-
-**Setup:**
-```bash
-make install-system-deps
-make install && make configure  # Auto-detects Caja
-
-# Optional: Python extension  
-sudo apt install python3-caja  # If available
-make caja-ext-install
-caja -q  # Restart Caja
-```
-
-**Manual Commands:**
-```bash
-# Actions only
-make gnome-install  # Installs .desktop action files
-
-# Check status
-make caja-ext-status
-```
-
-**Menu Location:** Right-click context menu → "YaDisk – ..."
-
----
-
-### Thunar (XFCE) [Beta]
-
-**Setup:**
-```bash
-make install-system-deps
-make install && make configure  # Auto-detects Thunar
-
-# Manual installation
-make thunar-install  # Merges custom actions into uca.xml
-```
-
-**Manual Commands:**
-```bash
-# Check installation
-make thunar-status
-
-# Remove (if needed)
-make thunar-uninstall
-```
-
-**Menu Location:** Right-click context menu → "YaDisk – ..."
-
-**Note:** Thunar uses custom actions (XML), not Python extensions.
 
 ---
 
@@ -165,7 +95,7 @@ make configure-skip-env   # Auto-detect desktop, skip environment variables
 **What `make configure` does:**
 - **Detects desktop environment** (KDE, GNOME, etc.)
 - **KDE**: Configures Dolphin service menus
-- **GNOME**: Installs scripts/actions + Python extensions for all file managers
+- **GNOME**: Installs scripts/actions + optional Python extensions
 - **Unknown**: Universal configuration with manual file manager setup
 
 ### Component Commands (Advanced Users)
@@ -185,21 +115,13 @@ make clean                # Clean build files
 make uninstall            # Remove Python version
 ```
 
-## 🔧 Installation Options Comparison
-
-| Method | Speed | Features | When to Use |
-|--------|-------|----------|-------------|
-| **Desktop-specific** (`make configure-kde/gnome`) | Fast | Targeted for your desktop | **Recommended** - Optimized setup |
-| **Auto-detect** (`make configure`) | Fast | Auto-detects your environment | Good for mixed/uncertain environments |
-| **Shell only** (`./setup.sh`) | Fastest | Basic features, minimal deps | Lightweight systems, KDE only |
-| **Manual components** | Slower | Full control over components | Troubleshooting, custom setups |
 
 ## 📱 System Requirements
 
 ### Clipboard Support
 - **X11**: Uses `xclip` for clipboard operations
 - **Wayland**: Uses `wl-clipboard` for clipboard operations  
-- **Python**: Uses `pyclip` (auto-detects and switches)
+- **Python**: Uses `pyclip` (auto-detects and switches between xclip and wl-clipboard)
 
 ### Dependencies by Desktop
 | Desktop | Required | Optional Extensions |
@@ -218,54 +140,24 @@ make install-system-deps  # Detects your distribution and desktop
 - **DNF** (Fedora/Red Hat)  
 - **Pacman** (Arch Linux)
 
-## 🎯 Real-World Usage Examples
+## 🎯 Examples
 
-### Installation Scenarios
-
-**Scenario 1: Fresh Ubuntu Desktop (GNOME)**
 ```bash
-# Complete automated setup
-make install-system-deps  # Installs libnotify-bin, python3-nautilus
-make install && make configure-gnome
-# Result: Scripts + Python extensions in Nautilus
-```
+# Fresh install (any desktop)
+make install-system-deps && make install && make configure
 
-**Scenario 2: Linux Mint (Cinnamon/Nemo)**
-```bash
-# Nemo-optimized setup
-make install-system-deps  # Installs nemo extensions
-make install && make configure-gnome  # Auto-detects Nemo
-make nemo-ext-status  # Verify extension installation
-```
+# Existing YA_DISK_ROOT
+git reset --hard HEAD && git pull && make install && make configure-skip-env
 
-**Scenario 3: Corporate KDE Environment (No sudo)**
-```bash
-# Shell version only (no sudo required for env setup)
+# Shell version only (KDE)
 ./setup.sh
-# Result: Basic YaDisk menu in Dolphin
-```
-
-**Scenario 4: Development Machine (Multiple File Managers)**
-```bash
-# Install everything for testing
-make install-system-deps && make install
-make configure-gnome  # Sets up all detected file managers
-make gnome-status     # Check what was installed
-```
-
-**Scenario 5: Existing Yandex Disk Setup**
-```bash
-# Don't modify existing YA_DISK_ROOT environment variable
-make install && make configure-kde-skip-env
-# or
-make install && make configure-gnome-skip-env
 ```
 
 ### Component-Specific Use Cases
 
-**Use Case: Basic Integration (All File Managers)**
+**Basic Integration (GNOME/GTK)**
 ```bash
-make gnome-install        # Scripts/actions for Nautilus, Nemo, Caja, Thunar
+make gnome-install        # Scripts/actions for Nautilus, Nemo, Caja
 # Result: Menu items available in all supported file managers
 ```
 
@@ -326,7 +218,8 @@ make gnome-ext-uninstall && make gnome-ext-install
 **KDE Dolphin:**
 ```bash
 # Check service menu files
-ls ~/.local/share/kservices5/ServiceMenus/ydpublish*.desktop
+ls ~/.local/share/kservices5/ServiceMenus/ydpublish*.desktop # older Plasma versions
+ls ~/.local/share/kio/servicemenus
 
 # Restart Dolphin
 dolphin --replace &
@@ -345,7 +238,6 @@ nautilus -q
 ```bash
 # Check status for all
 make gnome-status
-make thunar-status
 
 # Verify dependencies
 make install-system-deps
@@ -428,8 +320,7 @@ tail -f ~/.yandex-disk.log
 ### Check Installation Status
 ```bash
 make status          # Overall status
-make gnome-status    # GNOME file managers
-make thunar-status   # Thunar status
+make gnome-status    # GNOME/GTK file managers
 ```
 
 ### Update/Reinstall
@@ -452,9 +343,6 @@ make uninstall
 # Remove GNOME integration
 make gnome-uninstall
 make gnome-ext-uninstall
-
-# Remove Thunar integration
-make thunar-uninstall
 ```
 
 
