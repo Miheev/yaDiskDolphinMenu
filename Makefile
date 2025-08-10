@@ -1,6 +1,6 @@
 # Makefile for Yandex Disk Dolphin Menu - Python version management
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps gnome-install gnome-uninstall gnome-status gnome-ext-install gnome-ext-uninstall gnome-ext-status thunar-install thunar-uninstall thunar-status
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps gnome-install gnome-uninstall gnome-status gnome-ext-install gnome-ext-uninstall gnome-ext-status nemo-ext-install nemo-ext-uninstall nemo-ext-status caja-ext-install caja-ext-uninstall caja-ext-status thunar-install thunar-uninstall thunar-status
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -29,11 +29,17 @@ help:  ## Show this help message
 	@echo "  make gnome-ext-install   Install Nautilus Python extension (if python3-nautilus present)"
 	@echo "  make gnome-ext-uninstall Remove Nautilus Python extension"
 	@echo "  make gnome-ext-status   Show Nautilus Python extension status"
+	@echo "  make nemo-ext-install    Install Nemo Python extension (if python3-nemo present)"
+	@echo "  make nemo-ext-uninstall  Remove Nemo Python extension"
+	@echo "  make nemo-ext-status     Show Nemo Python extension status"
+	@echo "  make caja-ext-install    Install Caja Python extension (if python3-caja present)"
+	@echo "  make caja-ext-uninstall  Remove Caja Python extension"
+	@echo "  make caja-ext-status     Show Caja Python extension status"
 	@echo "  make thunar-install     Install Thunar custom actions (merge uca.xml fragment)"
 	@echo "  make thunar-uninstall   Remove Thunar custom actions (from fragment markers)"
 	@echo "  make thunar-status      Show Thunar custom actions status"
 
-cinstall-system-deps:  ## Install system dependencies based on session (X11/Wayland) and desktop (KDE/GNOME)
+install-system-deps:  ## Install system dependencies based on session (X11/Wayland) and desktop (KDE/GNOME)
 	@echo "Installing system dependencies..."
 	@IS_WAYLAND=$$([ -n "$$WAYLAND_DISPLAY" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ] && echo "1" || echo "0"); \
 	if [ "$$IS_WAYLAND" = "1" ]; then \
@@ -57,7 +63,7 @@ cinstall-system-deps:  ## Install system dependencies based on session (X11/Wayl
 		sudo apt update; \
 		if [ "$$IS_GNOME" = "1" ]; then \
 		  echo "Detected GNOME desktop"; \
-		  sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT libnotify-bin python3-nautilus python3-gi gir1.2-gtk-3.0; \
+		  sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT libnotify-bin python3-nautilus python3-nemo python3-caja python3-gi gir1.2-gtk-3.0; \
 		elif [ "$$IS_KDE" = "1" ]; then \
 		  echo "Detected KDE desktop"; \
 		  sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT kdialog; \
@@ -68,7 +74,7 @@ cinstall-system-deps:  ## Install system dependencies based on session (X11/Wayl
 	elif command -v dnf >/dev/null 2>&1; then \
 		echo "Detected DNF package manager (Fedora/Red Hat)"; \
 		if [ "$$IS_GNOME" = "1" ]; then \
-		  sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF libnotify python3-nautilus python3-gobject gtk3; \
+		  sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF libnotify python3-nautilus nemo-python caja-python python3-gobject gtk3; \
 		elif [ "$$IS_KDE" = "1" ]; then \
 		  sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF kdialog; \
 		else \
@@ -77,7 +83,7 @@ cinstall-system-deps:  ## Install system dependencies based on session (X11/Wayl
 	elif command -v pacman >/dev/null 2>&1; then \
 		echo "Detected Pacman package manager (Arch Linux)"; \
 		if [ "$$IS_GNOME" = "1" ]; then \
-		  sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN libnotify nautilus-python python-gobject gtk3; \
+		  sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN libnotify nautilus-python nemo-python caja-python python-gobject gtk3; \
 		elif [ "$$IS_KDE" = "1" ]; then \
 		  sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN kdialog; \
 		else \
@@ -286,6 +292,56 @@ gnome-ext-uninstall: ## Remove Nautilus Python extension
 gnome-ext-status: ## Show Nautilus Python extension installation status
 	@echo "=== Nautilus Python Extension ==="
 	@if [ -f "$(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py" ]; then \
+	  echo "Extension: ✓ Present"; \
+	else \
+	  echo "Extension: ✗ Not installed"; \
+	fi
+
+NEMO_EXT_DIR := $(HOME)/.local/share/nemo-python/extensions
+
+nemo-ext-install: ## Install Nemo Python extension (if python3-nemo is available)
+	@if python3 -c "import gi; from gi.repository import Nemo" >/dev/null 2>&1; then \
+	  echo "Installing Nemo Python extension..."; \
+	  mkdir -p "$(NEMO_EXT_DIR)"; \
+	  ln -sf "$(PWD)/gnome/nemo/ydmenu_nemo.py" "$(NEMO_EXT_DIR)/ydmenu_nemo.py"; \
+	  echo "Linked: $(NEMO_EXT_DIR)/ydmenu_nemo.py"; \
+	  echo "Restarting Nemo..."; \
+	  nemo -q || true; \
+	else \
+	  echo "python3-nemo not available (gi Nemo bindings missing). Skipping."; \
+	fi
+
+nemo-ext-uninstall: ## Remove Nemo Python extension
+	@rm -f "$(NEMO_EXT_DIR)/ydmenu_nemo.py" && echo "Removed: $(NEMO_EXT_DIR)/ydmenu_nemo.py" || true
+
+nemo-ext-status: ## Show Nemo Python extension installation status
+	@echo "=== Nemo Python Extension ==="
+	@if [ -f "$(NEMO_EXT_DIR)/ydmenu_nemo.py" ]; then \
+	  echo "Extension: ✓ Present"; \
+	else \
+	  echo "Extension: ✗ Not installed"; \
+	fi
+
+CAJA_EXT_DIR := $(HOME)/.local/share/caja-python/extensions
+
+caja-ext-install: ## Install Caja Python extension (if python3-caja is available)
+	@if python3 -c "import gi; from gi.repository import Caja" >/dev/null 2>&1; then \
+	  echo "Installing Caja Python extension..."; \
+	  mkdir -p "$(CAJA_EXT_DIR)"; \
+	  ln -sf "$(PWD)/gnome/caja/ydmenu_caja.py" "$(CAJA_EXT_DIR)/ydmenu_caja.py"; \
+	  echo "Linked: $(CAJA_EXT_DIR)/ydmenu_caja.py"; \
+	  echo "Restarting Caja..."; \
+	  caja -q || true; \
+	else \
+	  echo "python3-caja not available (gi Caja bindings missing). Skipping."; \
+	fi
+
+caja-ext-uninstall: ## Remove Caja Python extension
+	@rm -f "$(CAJA_EXT_DIR)/ydmenu_caja.py" && echo "Removed: $(CAJA_EXT_DIR)/ydmenu_caja.py" || true
+
+caja-ext-status: ## Show Caja Python extension installation status
+	@echo "=== Caja Python Extension ==="
+	@if [ -f "$(CAJA_EXT_DIR)/ydmenu_caja.py" ]; then \
 	  echo "Extension: ✓ Present"; \
 	else \
 	  echo "Extension: ✗ Not installed"; \
