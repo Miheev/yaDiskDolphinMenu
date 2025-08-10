@@ -1,6 +1,6 @@
 # Makefile for Yandex Disk Dolphin Menu - Python version management
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps gnome-install gnome-uninstall gnome-status gnome-ext-install gnome-ext-uninstall gnome-ext-status
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps gnome-install gnome-uninstall gnome-status gnome-ext-install gnome-ext-uninstall gnome-ext-status thunar-install thunar-uninstall thunar-status
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -29,6 +29,9 @@ help:  ## Show this help message
 	@echo "  make gnome-ext-install   Install Nautilus Python extension (if python3-nautilus present)"
 	@echo "  make gnome-ext-uninstall Remove Nautilus Python extension"
 	@echo "  make gnome-ext-status   Show Nautilus Python extension status"
+	@echo "  make thunar-install     Install Thunar custom actions (merge uca.xml fragment)"
+	@echo "  make thunar-uninstall   Remove Thunar custom actions (from fragment markers)"
+	@echo "  make thunar-status      Show Thunar custom actions status"
 
 cinstall-system-deps:  ## Install system dependencies based on session (X11/Wayland) and desktop (KDE/GNOME)
 	@echo "Installing system dependencies..."
@@ -286,6 +289,40 @@ gnome-ext-status: ## Show Nautilus Python extension installation status
 	  echo "Extension: ✓ Present"; \
 	else \
 	  echo "Extension: ✗ Not installed"; \
+	fi
+
+THUNAR_UCA := $(HOME)/.config/Thunar/uca.xml
+
+thunar-install: ## Install Thunar custom actions by merging fragment
+	@if command -v thunar >/dev/null 2>&1; then \
+	  echo "Installing Thunar actions..."; \
+	  mkdir -p "$(HOME)/.config/Thunar"; \
+	  if [ -f "$(THUNAR_UCA)" ]; then \
+	    # Remove previous block
+	    awk 'BEGIN{del=0} /<!-- YADISK-START -->/{del=1} !del{print} /<!-- YADISK-END -->/{del=0}' "$(THUNAR_UCA)" > "$(THUNAR_UCA).tmp" && mv "$(THUNAR_UCA).tmp" "$(THUNAR_UCA)"; \
+	  else \
+	    echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<actions>\n</actions>" > "$(THUNAR_UCA)"; \
+	  fi; \
+	  # Insert after <actions>
+	  awk '1;/<actions>/{system("cat thunar/uca_fragment.xml");}' "$(THUNAR_UCA)" > "$(THUNAR_UCA).tmp" && mv "$(THUNAR_UCA).tmp" "$(THUNAR_UCA)"; \
+	  echo "Thunar actions installed. Restart Thunar."; \
+	else \
+	  echo "Thunar not detected; skipping."; \
+	fi
+
+thunar-uninstall: ## Remove YaDisk Thunar actions
+	@if [ -f "$(THUNAR_UCA)" ]; then \
+	  awk 'BEGIN{del=0} /<!-- YADISK-START -->/{del=1} !del{print} /<!-- YADISK-END -->/{del=0}' "$(THUNAR_UCA)" > "$(THUNAR_UCA).tmp" && mv "$(THUNAR_UCA).tmp" "$(THUNAR_UCA)"; \
+	  echo "Thunar actions removed."; \
+	else \
+	  echo "No Thunar uca.xml found."; \
+	fi
+
+thunar-status: ## Show Thunar actions status
+	@if [ -f "$(THUNAR_UCA)" ]; then \
+	  grep -q "YADISK-START" "$(THUNAR_UCA)" && echo "Thunar actions: ✓ Present" || echo "Thunar actions: ✗ Not installed"; \
+	else \
+	  echo "Thunar actions: ✗ Not installed"; \
 	fi
 
 status:  ## Show installation status

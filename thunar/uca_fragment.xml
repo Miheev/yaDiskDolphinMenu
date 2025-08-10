@@ -1,0 +1,54 @@
+<!-- YADISK-START -->
+  <action>
+    <icon>folder-publicshare</icon>
+    <name>YaDisk – Publish (COM)</name>
+    <unique-id>yadisk-publish-com</unique-id>
+    <command>%h/yaDiskDolphinMenu/gnome/scripts/ydmenu-gnome-wrapper PublishToYandexCom %F</command>
+    <description>Publish file(s) and copy .com link</description>
+    <patterns>*</patterns>
+    <other-files/>
+    <directories/>
+  </action>
+  <action>
+    <icon>folder-publicshare</icon>
+    <name>YaDisk – Publish (RU)</name>
+    <unique-id>yadisk-publish-ru</unique-id>
+    <command>%h/yaDiskDolphinMenu/gnome/scripts/ydmenu-gnome-wrapper PublishToYandex %F</command>
+    <description>Publish file(s) and copy .ru link</description>
+    <patterns>*</patterns>
+    <other-files/>
+    <directories/>
+  </action>
+  <action>
+    <icon>edit-copy</icon>
+    <name>YaDisk – Save Clipboard</name>
+    <unique-id>yadisk-clipboard-save</unique-id>
+    <command>%h/yaDiskDolphinMenu/gnome/scripts/ydmenu-gnome-wrapper ClipboardToStream</command>
+    <description>Save clipboard to stream</description>
+    <patterns>*</patterns>
+    <other-files/>
+    <directories/>
+  </action>
+  <action>
+    <icon>list-add</icon>
+    <name>YaDisk – Copy to Stream</name>
+    <unique-id>yadisk-copy-to-stream</unique-id>
+    <command>%h/yaDiskDolphinMenu/gnome/scripts/ydmenu-gnome-wrapper FileAddToStream %F</command>
+    <description>Copy selected items to stream</description>
+    <patterns>*</patterns>
+    <other-files/>
+    <directories/>
+  </action>
+  <action>
+    <icon>go-jump</icon>
+    <name>YaDisk – Move to Stream</name>
+    <unique-id>yadisk-move-to-stream</unique-id>
+    <command>%h/yaDiskDolphinMenu/gnome/scripts/ydmenu-gnome-wrapper FileMoveToStream %F</command>
+    <description>Move selected items to stream</description>
+    <patterns>*</patterns>
+    <other-files/>
+    <directories/>
+  </action>
+<!-- YADISK-END -->
+
+
