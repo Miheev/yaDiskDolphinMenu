@@ -10,7 +10,7 @@ This guide provides detailed installation examples, file manager-specific setup,
 
 **Automated Installation:**
 ```bash
-make install-system-deps  # Install KDE dependencies (kdialog, clipboard tools)
+make install-system-deps  # Install KDE dependencies (notification, clipboard tools)
 make install && make configure  # Python version with service menus
 ```
 
@@ -333,6 +333,88 @@ make gnome-ext-uninstall
 # Remove Thunar integration
 make thunar-uninstall
 ```
+
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### 1. Desktop Menu Not Appearing
+```bash
+# Check symlinks
+make status
+
+# Restart Dolphin
+killall dolphin && dolphin &
+
+# Verify KDE directories exist
+mkdir -p ~/.local/share/kservices5/ServiceMenus/
+mkdir -p ~/.local/share/kio/servicemenus/
+```
+
+#### 2. Python Version Not Working
+```bash
+# Check virtual environment
+ls venv/bin/python
+
+# Test wrapper script
+ydmenu-py-env --help
+
+# Check dependencies
+make install-system-deps
+make install
+```
+
+#### 3. Permission Errors
+```bash
+# Make scripts executable
+chmod +x ydmenu.py setup.py ydmenu-py-env ydmenu.sh setup.sh
+
+# Check file ownership
+ls -la ydmenu*
+```
+
+#### 4. Yandex Disk Service Issues
+```bash
+# Check service status
+yandex-disk status
+
+# Start service if needed
+yandex-disk start
+
+# Check daemon configuration
+yandex-disk status --tray
+```
+
+#### 5. Environment Variables Not Set
+```bash
+# Check environment
+echo $YA_DISK_ROOT
+
+# Reload environment (after setup)
+source /etc/environment
+
+# Log out and back in for system-wide effect
+```
+
+### Debugging Tips
+
+1. **Check logs**: All operations log to `$YA_DISK_ROOT/yaMedia.log`
+2. **Test manually**: Run scripts directly to see detailed error messages
+3. **Verify paths**: Ensure all paths in environment variables exist
+4. **Check dependencies**: Use `make status` to verify all system dependencies
+
+## Performance Comparison
+
+| Aspect | Shell Version | Python Version |
+|--------|--------------|----------------|
+| Startup Time | ~0.1s | ~0.3s (includes venv) |
+| Memory Usage | ~2MB | ~15MB |
+| Dependencies | System tools only | Python + click + PyQt5 |
+| Error Handling | Basic | Comprehensive |
+| Extensibility | Limited | High |
+| Testing | Manual | Unit tests |
+
 
 ## 🔗 Related Documentation
 

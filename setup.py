@@ -211,44 +211,45 @@ class YandexDiskSetup:
         self.print_status("Python script already configured to use environment variables")
         self.print_status("Python version uses ydpublish-python.desktop (no modifications needed)")
     
-    def create_symlinks(self) -> None:
+    def create_symlinks(self, skip_kde: bool = False) -> None:
         """Create symlinks in KDE service menu directories and bin"""
         self.print_status("Create symlinks accordingly")
         
         # Ensure bin directory exists
         self.bin_dir.mkdir(exist_ok=True)
         
-        # Create symlinks for Python desktop file only
-        desktop_files = [
-            (self.DESKTOP_FILE_NAME, self.DESKTOP_FILE_NAME)  # Python version
-        ]
+        # Create symlinks for KDE service menus (unless skipped)
+        desktop_files = [(self.DESKTOP_FILE_NAME, self.DESKTOP_FILE_NAME)]  # Python version
         
-        for service_menu_dir in self.service_menu_dirs:
-            service_menu_dir.mkdir(parents=True, exist_ok=True)
-            
-            for desktop_file, link_name in desktop_files:
-                desktop_link = service_menu_dir / link_name
-                desktop_source = self.script_dir / desktop_file
+        if not skip_kde:
+            for service_menu_dir in self.service_menu_dirs:
+                service_menu_dir.mkdir(parents=True, exist_ok=True)
                 
-                if not desktop_source.exists():
-                    self.print_status(f"Source file not found: {desktop_source}")
-                    continue
-                
-                if not desktop_link.is_symlink():
-                    # Backup existing file if it exists and is not a symlink
-                    if desktop_link.exists():
-                        backup_file = service_menu_dir / f"{link_name}.bak"
-                        if backup_file.exists():
-                            self.print_status(f"Backup already exists: {backup_file}")
-                        else:
-                            self.print_status(f"Create backup for default desktop file: {backup_file}")
-                            shutil.move(str(desktop_link), str(backup_file))
+                for desktop_file, link_name in desktop_files:
+                    desktop_link = service_menu_dir / link_name
+                    desktop_source = self.script_dir / desktop_file
                     
-                    # Create symlink (remove existing file first if needed)
-                    if desktop_link.exists():
-                        desktop_link.unlink()
-                    desktop_link.symlink_to(desktop_source)
-                    self.print_status(f"Created symlink: {desktop_link} -> {desktop_source}")
+                    if not desktop_source.exists():
+                        self.print_status(f"Source file not found: {desktop_source}")
+                        continue
+                    
+                    if not desktop_link.is_symlink():
+                        # Backup existing file if it exists and is not a symlink
+                        if desktop_link.exists():
+                            backup_file = service_menu_dir / f"{link_name}.bak"
+                            if backup_file.exists():
+                                self.print_status(f"Backup already exists: {backup_file}")
+                            else:
+                                self.print_status(f"Create backup for default desktop file: {backup_file}")
+                                shutil.move(str(desktop_link), str(backup_file))
+                        
+                        # Create symlink (remove existing file first if needed)
+                        if desktop_link.exists():
+                            desktop_link.unlink()
+                        desktop_link.symlink_to(desktop_source)
+                        self.print_status(f"Created symlink: {desktop_link} -> {desktop_source}")
+        else:
+            self.print_status("Skipping KDE service menu installation (--skip-kde flag)")
         
         # Make desktop files executable
         for desktop_file, _ in desktop_files:
@@ -374,9 +375,10 @@ class YandexDiskSetup:
 @click.option('--ya-disk-relative', default='yaDisk', help='Yandex disk directory name')
 @click.option('--inbox-relative', default='Media', help='Inbox directory for file stream')
 @click.option('--skip-env', is_flag=True, help='Skip environment variable setup')
+@click.option('--skip-kde', is_flag=True, help='Skip KDE service menu installation')
 @click.option('--check-deps', is_flag=True, help='Only check dependencies')
 def main(ya_disk_root: str, ya_disk_relative: str, inbox_relative: str, 
-         skip_env: bool, check_deps: bool):
+         skip_env: bool, skip_kde: bool, check_deps: bool):
     """Setup Yandex Disk KDE Dolphin integration - Python version"""
     
     setup = YandexDiskSetup()
@@ -424,7 +426,7 @@ def main(ya_disk_root: str, ya_disk_relative: str, inbox_relative: str,
         setup.update_script_variables()
         
         # Create symlinks
-        setup.create_symlinks()
+        setup.create_symlinks(skip_kde)
         
         setup.print_status("Setup completed successfully!")
         setup.print_status("")

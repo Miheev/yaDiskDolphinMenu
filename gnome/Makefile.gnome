@@ -208,6 +208,11 @@ thunar-status: ## Show Thunar actions status
 
 gnome-help: ## Show GNOME integration help
 	@echo ""
+	@echo "Desktop-Specific Configuration:"
+	@echo "  make configure-kde      Configure for KDE/Dolphin only"
+	@echo "  make configure-gnome    Configure for GNOME/GTK file managers only"
+	@echo "  make configure          Auto-detect desktop and configure (recommended)"
+	@echo ""
 	@echo "GNOME Integration:"
 	@echo "  make gnome-install    Install GNOME/Nemo/Caja scripts (symlinks)"
 	@echo "  make gnome-uninstall  Remove GNOME/Nemo/Caja scripts"

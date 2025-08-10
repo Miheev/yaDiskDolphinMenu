@@ -42,6 +42,27 @@ Inspired by [yandex disk indicator](https://github.com/slytomcat/yandex-disk-ind
 - **Batch Processing**: Handle multiple files with intelligent error recovery
 - **Auto-renaming**: Automatic conflict resolution with `_number` suffix pattern
 
+### The original shell script implementation:
+- **Publish file & copy ya.COM link** - Publish file and copy international link
+- **Publish file & copy ya.RU link** - Publish file and copy local link
+- **Publish clipboard & copy ya.COM/RU link** - Save clipboard content and publish
+- **Remove public link** - Unpublish single file
+- **Remove links for all copies** - Unpublish file and all numbered copies
+- **Save clipboard to stream** - Save clipboard without publishing
+- **Add file to stream** - Copy file to stream directory
+- **Move file to stream** - Move file to stream directory
+
+### Key Improvements Over Shell Version
+- **Multiple Item Processing** - Process multiple files/directories with intelligent algorithms optimized for different operation types
+- **Enhanced Parameter Logging** - Comprehensive logging of input parameters, file details, and processing steps
+- **Better Error Handling** - Comprehensive exception handling with proper logging, continues processing remaining items on failures
+- **Optimized Architecture** - Centralized constants, clean separation of concerns, and improved code organization
+- **Type Safety** - Python type hints for better code reliability
+- **Modular Design** - Object-oriented structure for better maintainability
+- **Testing** - Full unit test coverage with mocking (52+ test cases)
+- **Configuration** - Flexible command-line configuration options
+- **Documentation** - Comprehensive inline documentation
+
 ### Enhanced Reliability
 - **Service Readiness**: Waits for yandex-disk daemon (up to 30s) before operations
 - **Error Handling**: Continues processing remaining items if some fail
@@ -50,7 +71,9 @@ Inspired by [yandex disk indicator](https://github.com/slytomcat/yandex-disk-ind
 - **Rollback Support**: Undo operations when errors occur
 
 ### Multi-Platform Support
-- **Desktop Environments**: KDE (primary), GNOME, Cinnamon, MATE, XFCE
+- **Desktop Environments**: 
+  - KDE: primary, full support
+  - GNOME, Cinnamon, MATE, XFCE: Beta, not tested
 - **Session Types**: X11 and Wayland clipboard support
 - **File Managers**: See [support matrix](#🖥️-file-manager-support-matrix) above
 
@@ -131,6 +154,16 @@ For any commercial use of this software, including but not limited to:
 For commercial licensing inquiries, please open an issue: `https://github.com/Miheev/yaDiskDolphinMenu/issues`.
 
 See [LICENSE](LICENSE) for full terms and conditions.
+
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes with tests
+4. Run quality checks: `make lint test`
+5. Submit pull request
+
 
 ### Automated Releases
 

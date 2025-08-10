@@ -29,6 +29,18 @@ A modern Python implementation of the Yandex Disk file manager integration with 
 
 ## 🔧 Technical Requirements
 
+### Overview
+- **Desktop Environment**:
+  - **KDE** with Dolphin file manager (primary support)
+  - **GNOME/GTK** with Files/Nautilus, Nemo, Caja, or Thunar [Beta]
+- **yandex-disk** daemon installed and running
+- **Notifications**: **kdialog** (KDE) or **notify-send** (GNOME and others)
+- **Clipboard utilities**:
+  - **xclip** - For X11 environments
+  - **wl-clipboard** - For Wayland environments
+- **Python 3.8+**
+- **Python venv** - python3-venv package (naming varies by distribution)
+
 ### Python Runtime
 - **Python 3.8+** with type hints support
 - **Virtual Environment**: Isolated dependency management
