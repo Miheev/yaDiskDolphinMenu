@@ -3,12 +3,13 @@
 # Include GNOME-family file manager targets
 -include gnome/Makefile.gnome
 
-.PHONY: help install test test-clean clean clean-test-artifacts lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps _configure-base _configure-gnome-extensions _configure-desktop
+.PHONY: help install test clean clean-test-artifacts lint format setup-dev run-tests install-deps uninstall coverage coverage-required coverage-html coverage-browse configure configure-skip-env install-system-deps _configure-base _configure-gnome-extensions _configure-desktop
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
 PIP = $(VENV_DIR)/bin/pip
 PYTEST = $(VENV_DIR)/bin/pytest
+MIN_COVERAGE ?= 85
 
 help:  ## Show this help message
 	@echo "Yandex Disk Dolphin Menu - Python Version Management"
@@ -140,13 +141,7 @@ _configure-gnome-extensions:  ## Internal: Install GNOME file manager extensions
 test: install-deps  ## Run unit tests
 	$(PYTHON) -m pytest test_*.py -v
 
-test-clean: install-deps ## Run tests and always clean test artifacts (even if tests fail)
-	@STATUS=0; \
-	$(PYTHON) -m pytest test_*.py -v || STATUS=$$?; \
-	$(MAKE) --no-print-directory clean-test-artifacts; \
-	exit $$STATUS
-
-test-coverage: install-deps  ## Run tests with coverage
+test-coverage: install-deps  ## Run tests with coverage (does not enforce threshold)
 	$(PIP) install coverage
 	$(VENV_DIR)/bin/coverage run -m pytest test_*.py
 	$(VENV_DIR)/bin/coverage report -m
@@ -155,6 +150,11 @@ coverage: install-deps  ## Run tests with coverage (alias for test-coverage)
 	$(PIP) install coverage
 	$(VENV_DIR)/bin/coverage run -m pytest test_*.py
 	$(VENV_DIR)/bin/coverage report -m
+
+coverage-required: install-deps  ## Run coverage and fail if below MIN_COVERAGE (default: 85)
+	$(PIP) install coverage
+	$(VENV_DIR)/bin/coverage run -m pytest test_*.py
+	$(VENV_DIR)/bin/coverage report -m --fail-under=$(MIN_COVERAGE)
 
 coverage-html: install-deps  ## Generate HTML coverage report
 	$(PIP) install coverage
