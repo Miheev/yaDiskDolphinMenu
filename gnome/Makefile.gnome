@@ -1,6 +1,16 @@
 # GNOME-family file manager integration targets
 # Supports Nautilus (Files), Nemo, Caja, and Thunar
 
+# Ensured GNOME install sets execute bits where needed:
+# Nautilus scripts: gnome-install now chmod +x’s every linked script in ~/.local/share/nautilus/scripts, including names with spaces, plus the common/gnome_selection_to_paths.sh helper in the same target directory.
+# Wrapper: ydmenu-gnome-wrapper is included in the scripts loop, so it’s executable after install.
+# Python extensions (Nautilus/Nemo/Caja) are linked; no execute bit required.
+# Nemo/Caja actions are data files; no execute bit required.
+# Main Makefile already ensures ydmenu.py, setup.py, and ydmenu-py-env are executable.
+# Verified via dry-run of the installer to confirm the chmod/link steps are present.
+# Notes:
+# Thunar flow uses XML actions; no executables are required there.
+
 # Define directory paths (they're set by user-specific directories)
 GNOME_SCRIPTS_DIR = ~/.local/share/nautilus/scripts
 NEMO_ACTIONS_DIR = ~/.local/share/nemo/actions
@@ -27,6 +37,11 @@ gnome-install: ## Install scripts/actions for all GNOME file managers (Nautilus,
 	  chmod +x "$(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
 	  echo "Linked: $(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
 	done
+	@# Ensure common helper is available and executable for scripts
+	@mkdir -p "$(GNOME_SCRIPTS_DIR)/common"
+	@ln -sf "$(PWD)/gnome/scripts/common/gnome_selection_to_paths.sh" "$(GNOME_SCRIPTS_DIR)/common/gnome_selection_to_paths.sh"
+	@chmod +x "$(GNOME_SCRIPTS_DIR)/common/gnome_selection_to_paths.sh"
+	@echo "Linked: $(GNOME_SCRIPTS_DIR)/common/gnome_selection_to_paths.sh"
 	@# Install Nemo actions
 	@if command -v nemo >/dev/null 2>&1; then \
 	  echo "Installing Nemo actions..."; \
