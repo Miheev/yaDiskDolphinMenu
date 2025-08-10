@@ -34,9 +34,17 @@ class TestYandexDiskSetup(unittest.TestCase):
             Path(self.temp_dir) / "servicemenus2"
         ]
         self.setup.bin_dir = Path(self.temp_dir) / "bin"
+        # Ensure tests do not create symlinks under the real HOME
+        from unittest.mock import patch as _patch
+        self._home_patcher = _patch('pathlib.Path.home', return_value=Path(self.temp_dir))
+        self._home_patcher.start()
     
     def tearDown(self):
         """Clean up test environment"""
+        try:
+            self._home_patcher.stop()
+        except Exception:
+            pass
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
     def test_init(self):

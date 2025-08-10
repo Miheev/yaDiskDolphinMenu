@@ -3,7 +3,7 @@
 # Include GNOME-family file manager targets
 -include gnome/Makefile.gnome
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps _configure-base _configure-gnome-extensions _configure-desktop
+.PHONY: help install test test-clean clean clean-test-artifacts lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps _configure-base _configure-gnome-extensions _configure-desktop
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -140,6 +140,12 @@ _configure-gnome-extensions:  ## Internal: Install GNOME file manager extensions
 test: install-deps  ## Run unit tests
 	$(PYTHON) -m pytest test_*.py -v
 
+test-clean: install-deps ## Run tests and always clean test artifacts (even if tests fail)
+	@STATUS=0; \
+	$(PYTHON) -m pytest test_*.py -v || STATUS=$$?; \
+	$(MAKE) --no-print-directory clean-test-artifacts; \
+	exit $$STATUS
+
 test-coverage: install-deps  ## Run tests with coverage
 	$(PIP) install coverage
 	$(VENV_DIR)/bin/coverage run -m pytest test_*.py
@@ -184,6 +190,9 @@ check-deps:  ## Check system dependencies
 
 clean:  ## Clean up generated files
 	rm -rf $(VENV_DIR)
+	$(MAKE) --no-print-directory clean-test-artifacts
+
+clean-test-artifacts: ## Remove test caches and coverage artifacts (keeps venv)
 	rm -rf __pycache__
 	rm -rf .pytest_cache
 	rm -rf *.pyc
