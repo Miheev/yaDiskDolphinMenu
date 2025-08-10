@@ -4,23 +4,34 @@ This guide provides detailed installation examples, file manager-specific setup,
 
 > **📋 Overview**: For project introduction and quick start, see [README](../README.md). For Python technical details, see [Python README](README_Python.md).
 
+## 🚀 Quick Command Reference
+
+| Desktop Environment | Recommended Setup Command |
+|---------------------|---------------------------|
+| **Any Desktop (Auto-detect)** | `make install-system-deps && make install && make configure` |
+| **Existing YA_DISK_ROOT** | `make install-system-deps && make install && make configure-skip-env` |
+| **Shell only (KDE)** | `./setup.sh` |
+
+### Common Use Cases
+
+**🎯 Most users:** Use auto-detection (`make configure`)  
+**⚡ Minimal setup:** Use shell version (`./setup.sh`)  
+**🔧 Granular control:** Use individual component commands (`gnome-install`, `gnome-ext-install`)  
+**🚫 Existing config:** Use skip environment variables (`make configure-skip-env`)
+
 ## 🖥️ File Manager-Specific Installation
 
 ### KDE Dolphin (Primary Support)
 
-**Automated Installation:**
+**Setup:**
 ```bash
 make install-system-deps  # Install KDE dependencies (notification, clipboard tools)
-make install && make configure  # Python version with service menus
+make install && make configure  # Auto-detects KDE and configures for Dolphin
 ```
 
-**Manual Setup:**
+**Alternative (Shell only):**
 ```bash
-# Shell version only
-./setup.sh
-
-# Verify installation
-ls ~/.local/share/kservices5/ServiceMenus/ydpublish*.desktop
+./setup.sh  # Lightweight shell version
 ```
 
 **Menu Location:** Right-click on files → "YaDisk" or "YaDisk (Python)"
@@ -29,33 +40,35 @@ ls ~/.local/share/kservices5/ServiceMenus/ydpublish*.desktop
 
 ### GNOME Nautilus (Files) [Beta]
 
-**Automated Installation:**
+> **💡 Integration Types**: 
+> - **`make gnome-install`** - Scripts/actions integration (works everywhere, basic functionality)
+> - **`make gnome-ext-install`** - Python extensions integration (enhanced functionality, requires specific packages)
+
+**Setup:**
 ```bash
-# Install GNOME dependencies
-make install-system-deps  # Installs libnotify-bin, python3-nautilus, etc.
+# Install GNOME dependencies and configure everything at once
+make install-system-deps
+make install && make configure  # Auto-detects GNOME and configures all file managers
 
-# Install with scripts
-make install && make configure  # Desktop-aware; installs scripts automatically
-
-# Optional: Install Python extension (enhanced integration)
-make gnome-ext-install  # Requires python3-nautilus
+# Or skip environment variable setup
+make install && make configure-skip-env
 ```
 
-**Manual Setup:**
+**Manual Granular Installation:**
 ```bash
-# Scripts only (basic integration)
-make gnome-install
-nautilus -q  # Restart Files
+# 1. Basic scripts installation (works everywhere)
+make gnome-install  # Installs Nautilus scripts
 
-# Python extension (advanced integration)
-sudo apt install python3-nautilus python3-gi  # Ubuntu/Debian
-make gnome-ext-install
+# 2. Enhanced Python extension (if python3-nautilus available)
+make gnome-ext-install  # Requires python3-nautilus package
+
+# 3. Restart file manager
 nautilus -q
 ```
 
 **Menu Locations:**
-- **Scripts**: Files → Scripts → "YaDisk – ..."
-- **Extension**: Right-click context menu → "YaDisk"
+- **Scripts**: Files → Scripts → "YaDisk – ..." (always available)
+- **Extension**: Right-click context menu → "YaDisk" (enhanced integration)
 
 **Dependencies:**
 - **Scripts**: `libnotify-bin` (notifications)
@@ -141,13 +154,45 @@ make thunar-uninstall
 
 ---
 
+## 🔧 Configuration Commands
+
+### Main Configuration
+```bash
+make configure            # Auto-detect desktop and configure (recommended)
+make configure-skip-env   # Auto-detect desktop, skip environment variables
+```
+
+**What `make configure` does:**
+- **Detects desktop environment** (KDE, GNOME, etc.)
+- **KDE**: Configures Dolphin service menus
+- **GNOME**: Installs scripts/actions + Python extensions for all file managers
+- **Unknown**: Universal configuration with manual file manager setup
+
+### Component Commands (Advanced Users)
+```bash
+# GNOME/GTK file managers (manual control)
+make gnome-install        # Install scripts/actions for all file managers
+make gnome-ext-install    # Install Python extensions for all supported file managers
+make gnome-status         # Check scripts/actions status
+make gnome-ext-status     # Check Python extensions status
+make gnome-uninstall      # Remove all scripts/actions
+make gnome-ext-uninstall  # Remove all Python extensions
+
+# Status & Maintenance
+make status               # Overall installation status
+make test                 # Run all tests
+make clean                # Clean build files
+make uninstall            # Remove Python version
+```
+
 ## 🔧 Installation Options Comparison
 
 | Method | Speed | Features | When to Use |
 |--------|-------|----------|-------------|
-| **Desktop-aware** (`make configure`) | Fast | Auto-detects your file manager | **Recommended** - One command setup |
+| **Desktop-specific** (`make configure-kde/gnome`) | Fast | Targeted for your desktop | **Recommended** - Optimized setup |
+| **Auto-detect** (`make configure`) | Fast | Auto-detects your environment | Good for mixed/uncertain environments |
 | **Shell only** (`./setup.sh`) | Fastest | Basic features, minimal deps | Lightweight systems, KDE only |
-| **Manual install** | Slower | Full control over components | Troubleshooting, custom setups |
+| **Manual components** | Slower | Full control over components | Troubleshooting, custom setups |
 
 ## 📱 System Requirements
 
@@ -173,28 +218,106 @@ make install-system-deps  # Detects your distribution and desktop
 - **DNF** (Fedora/Red Hat)  
 - **Pacman** (Arch Linux)
 
-## 🎯 Usage Examples
+## 🎯 Real-World Usage Examples
 
-### Basic File Operations
+### Installation Scenarios
+
+**Scenario 1: Fresh Ubuntu Desktop (GNOME)**
+```bash
+# Complete automated setup
+make install-system-deps  # Installs libnotify-bin, python3-nautilus
+make install && make configure-gnome
+# Result: Scripts + Python extensions in Nautilus
+```
+
+**Scenario 2: Linux Mint (Cinnamon/Nemo)**
+```bash
+# Nemo-optimized setup
+make install-system-deps  # Installs nemo extensions
+make install && make configure-gnome  # Auto-detects Nemo
+make nemo-ext-status  # Verify extension installation
+```
+
+**Scenario 3: Corporate KDE Environment (No sudo)**
+```bash
+# Shell version only (no sudo required for env setup)
+./setup.sh
+# Result: Basic YaDisk menu in Dolphin
+```
+
+**Scenario 4: Development Machine (Multiple File Managers)**
+```bash
+# Install everything for testing
+make install-system-deps && make install
+make configure-gnome  # Sets up all detected file managers
+make gnome-status     # Check what was installed
+```
+
+**Scenario 5: Existing Yandex Disk Setup**
+```bash
+# Don't modify existing YA_DISK_ROOT environment variable
+make install && make configure-kde-skip-env
+# or
+make install && make configure-gnome-skip-env
+```
+
+### Component-Specific Use Cases
+
+**Use Case: Basic Integration (All File Managers)**
+```bash
+make gnome-install        # Scripts/actions for Nautilus, Nemo, Caja, Thunar
+# Result: Menu items available in all supported file managers
+```
+
+**Use Case: Enhanced Integration (Python Extensions)**
+```bash
+make gnome-ext-install    # Python extensions for all supported file managers
+# Result: Advanced integration where supported (auto-detects capabilities)
+```
+
+**Use Case: Development Testing**
+```bash
+# Install everything for comprehensive testing
+make gnome-install        # All scripts/actions
+make gnome-ext-install    # All Python extensions
+make gnome-status         # Check scripts status
+make gnome-ext-status     # Check extensions status
+```
+
+**Use Case: Troubleshooting**
+```bash
+# Check what's installed
+make status               # Overall Python setup status
+make gnome-status         # Scripts/actions status for all file managers
+make gnome-ext-status     # Python extensions status for all file managers
+
+# Reinstall if broken
+make gnome-uninstall && make gnome-install
+make gnome-ext-uninstall && make gnome-ext-install
+```
+
+### Daily Usage Examples
+
+**Basic File Operations:**
 1. **Publish File**: Right-click file → YaDisk → "Publish (COM)" or "Publish (RU)"
-2. **Copy to Stream**: Right-click file → YaDisk → "Copy to Stream"
+2. **Copy to Stream**: Right-click file → YaDisk → "Copy to Stream"  
 3. **Save Clipboard**: Right-click anywhere → YaDisk → "Save Clipboard"
 
-### Batch Operations (Python Version)
+**Batch Operations (Python Version):**
 - Select multiple files → Right-click → YaDisk → Choose action
 - Intelligent error handling continues with remaining files if some fail
 
-### Menu Actions Available
-| Action | Description |
-|--------|-------------|
-| **Publish (COM)** | Create public .com link and copy to clipboard |
-| **Publish (RU)** | Create public .ru link and copy to clipboard |
-| **Save Clipboard** | Save clipboard content to stream directory |
-| **Save & Publish Clipboard** | Save clipboard and create public link |
-| **Copy to Stream** | Copy selected files to stream directory |
-| **Move to Stream** | Move selected files to stream directory |
-| **Unpublish** | Remove public link for file |
-| **Unpublish All Copies** | Remove public links for file and all copies |
+**Menu Actions Available:**
+| Action | Description | Location |
+|--------|-------------|----------|
+| **Publish (COM)** | Create public .com link and copy to clipboard | All file managers |
+| **Publish (RU)** | Create public .ru link and copy to clipboard | All file managers |
+| **Save Clipboard** | Save clipboard content to stream directory | Background click |
+| **Save & Publish Clipboard** | Save clipboard and create public link | Background click |
+| **Copy to Stream** | Copy selected files to stream directory | Selected files |
+| **Move to Stream** | Move selected files to stream directory | Selected files |
+| **Unpublish** | Remove public link for file | Single file |
+| **Unpublish All Copies** | Remove public links for file and all copies | Single file |
 
 ## 🛠️ Troubleshooting
 

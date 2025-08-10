@@ -3,7 +3,7 @@
 # Include GNOME-family file manager targets
 -include gnome/Makefile.gnome
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env configure-kde configure-kde-skip-env configure-gnome configure-gnome-skip-env install-system-deps desktop-aware-install _configure-base _configure-gnome-extensions
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps _configure-base _configure-gnome-extensions
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -101,30 +101,44 @@ install: install-deps  ## Install Python version dependencies
 	@echo "Run 'make configure' or 'python setup.py' to complete Python version installation"
 
 configure:  ## Configure Python version with desktop-aware installation (requires sudo)
-	@$(MAKE) --no-print-directory _configure-base
-	@$(MAKE) --no-print-directory desktop-aware-install
+	@echo "Detecting desktop environment..."
+	@DESKTOP_ENV="$$XDG_CURRENT_DESKTOP$$DESKTOP_SESSION"; \
+	IS_GNOME=$$(echo "$$DESKTOP_ENV" | grep -Eqi "gnome|unity|ubuntu:gnome" && echo 1 || echo 0); \
+	IS_KDE=$$(echo "$$DESKTOP_ENV" | grep -Eqi "kde|plasma" && echo 1 || echo 0); \
+	if [ "$$IS_KDE" = "1" ]; then \
+	  echo "KDE desktop detected - configuring for Dolphin"; \
+	  $(MAKE) --no-print-directory _configure-base; \
+	  echo "KDE configuration complete. YaDisk menu available in Dolphin."; \
+	elif [ "$$IS_GNOME" = "1" ]; then \
+	  echo "GNOME desktop detected - configuring for GNOME file managers"; \
+	  SKIP_KDE=1 $(MAKE) --no-print-directory _configure-base; \
+	  $(MAKE) --no-print-directory _configure-gnome-extensions; \
+	  echo "GNOME configuration complete."; \
+	else \
+	  echo "Unknown desktop environment ($$DESKTOP_ENV) - using universal configuration"; \
+	  $(MAKE) --no-print-directory _configure-base; \
+	  echo "Universal configuration complete. Manual file manager integration may be required."; \
+	fi
 
 configure-skip-env:  ## Configure Python version with desktop-aware installation, skip env setup (requires sudo)
-	@SKIP_ENV=1 $(MAKE) --no-print-directory _configure-base
-	@$(MAKE) --no-print-directory desktop-aware-install
-
-configure-kde:  ## Configure Python version for KDE only (requires sudo)
-	@$(MAKE) --no-print-directory _configure-base
-	@echo "KDE configuration complete. YaDisk menu available in Dolphin."
-
-configure-kde-skip-env:  ## Configure Python version for KDE only, skip env setup (requires sudo)
-	@SKIP_ENV=1 $(MAKE) --no-print-directory _configure-base
-	@echo "KDE configuration complete. YaDisk menu available in Dolphin."
-
-configure-gnome:  ## Configure Python version for GNOME only (requires sudo)
-	@SKIP_KDE=1 $(MAKE) --no-print-directory _configure-base
-	@$(MAKE) --no-print-directory _configure-gnome-extensions
-	@echo "GNOME configuration complete."
-
-configure-gnome-skip-env:  ## Configure Python version for GNOME only, skip env setup (requires sudo)
-	@SKIP_ENV=1 SKIP_KDE=1 $(MAKE) --no-print-directory _configure-base
-	@$(MAKE) --no-print-directory _configure-gnome-extensions
-	@echo "GNOME configuration complete."
+	@echo "Detecting desktop environment..."
+	@DESKTOP_ENV="$$XDG_CURRENT_DESKTOP$$DESKTOP_SESSION"; \
+	IS_GNOME=$$(echo "$$DESKTOP_ENV" | grep -Eqi "gnome|unity|ubuntu:gnome" && echo 1 || echo 0); \
+	IS_KDE=$$(echo "$$DESKTOP_ENV" | grep -Eqi "kde|plasma" && echo 1 || echo 0); \
+	if [ "$$IS_KDE" = "1" ]; then \
+	  echo "KDE desktop detected - configuring for Dolphin (skip env)"; \
+	  SKIP_ENV=1 $(MAKE) --no-print-directory _configure-base; \
+	  echo "KDE configuration complete. YaDisk menu available in Dolphin."; \
+	elif [ "$$IS_GNOME" = "1" ]; then \
+	  echo "GNOME desktop detected - configuring for GNOME file managers (skip env)"; \
+	  SKIP_ENV=1 SKIP_KDE=1 $(MAKE) --no-print-directory _configure-base; \
+	  $(MAKE) --no-print-directory _configure-gnome-extensions; \
+	  echo "GNOME configuration complete."; \
+	else \
+	  echo "Unknown desktop environment ($$DESKTOP_ENV) - using universal configuration (skip env)"; \
+	  SKIP_ENV=1 $(MAKE) --no-print-directory _configure-base; \
+	  echo "Universal configuration complete. Manual file manager integration may be required."; \
+	fi
 
 _configure-base:  ## Internal: Base configuration (reads SKIP_ENV, SKIP_KDE from environment)
 	@SKIP_ENV_FLAG=""; if [ "$$SKIP_ENV" = "1" ]; then SKIP_ENV_FLAG="--skip-env"; fi; \
@@ -133,54 +147,9 @@ _configure-base:  ## Internal: Base configuration (reads SKIP_ENV, SKIP_KDE from
 
 _configure-gnome-extensions:  ## Internal: Install GNOME file manager extensions
 	@$(MAKE) --no-print-directory gnome-install
-	@if python3 -c "import gi; from gi.repository import Nautilus" >/dev/null 2>&1; then \
-	  echo "python3-nautilus detected - installing Nautilus extension..."; \
-	  $(MAKE) --no-print-directory gnome-ext-install; \
-	fi
-	@if python3 -c "import gi; from gi.repository import Nemo" >/dev/null 2>&1; then \
-	  echo "python3-nemo detected - installing Nemo extension..."; \
-	  $(MAKE) --no-print-directory nemo-ext-install; \
-	fi
-	@if python3 -c "import gi; from gi.repository import Caja" >/dev/null 2>&1; then \
-	  echo "python3-caja detected - installing Caja extension..."; \
-	  $(MAKE) --no-print-directory caja-ext-install; \
-	fi
-	@if command -v thunar >/dev/null 2>&1; then \
-	  echo "Thunar detected - installing Thunar actions..."; \
-	  $(MAKE) --no-print-directory thunar-install; \
-	fi
+	@$(MAKE) --no-print-directory gnome-ext-install
 
-desktop-aware-install:  ## Install file manager integration based on detected desktop environment
-	@echo "Detecting desktop environment..."
-	@DESKTOP_ENV="$$XDG_CURRENT_DESKTOP$$DESKTOP_SESSION"; \
-	IS_GNOME=$$(echo "$$DESKTOP_ENV" | grep -Eqi "gnome|unity|ubuntu:gnome" && echo 1 || echo 0); \
-	IS_KDE=$$(echo "$$DESKTOP_ENV" | grep -Eqi "kde|plasma" && echo 1 || echo 0); \
-	if [ "$$IS_KDE" = "1" ]; then \
-	  echo "KDE desktop detected - YaDisk menu already configured for Dolphin"; \
-	elif [ "$$IS_GNOME" = "1" ]; then \
-	  echo "GNOME desktop detected - installing GNOME file manager integration..."; \
-	  $(MAKE) --no-print-directory gnome-install; \
-	  if python3 -c "import gi; from gi.repository import Nautilus" >/dev/null 2>&1; then \
-	    echo "python3-nautilus detected - installing Nautilus extension..."; \
-	    $(MAKE) --no-print-directory gnome-ext-install; \
-	  fi; \
-	  if python3 -c "import gi; from gi.repository import Nemo" >/dev/null 2>&1; then \
-	    echo "python3-nemo detected - installing Nemo extension..."; \
-	    $(MAKE) --no-print-directory nemo-ext-install; \
-	  fi; \
-	  if python3 -c "import gi; from gi.repository import Caja" >/dev/null 2>&1; then \
-	    echo "python3-caja detected - installing Caja extension..."; \
-	    $(MAKE) --no-print-directory caja-ext-install; \
-	  fi; \
-	  if command -v thunar >/dev/null 2>&1; then \
-	    echo "Thunar detected - installing Thunar actions..."; \
-	    $(MAKE) --no-print-directory thunar-install; \
-	  fi; \
-	else \
-	  echo "Unknown desktop environment ($$DESKTOP_ENV) - manual integration required"; \
-	  echo "For KDE: Already configured"; \
-	  echo "For GNOME: Run 'make gnome-install' and optionally 'make gnome-ext-install'"; \
-	fi
+
 
 test: install-deps  ## Run unit tests
 	$(PYTHON) -m pytest test_*.py -v
