@@ -17,9 +17,9 @@ A modern Python rewrite of the Yandex Disk integration for KDE Dolphin file mana
 ## Requirements
 
 ### System Dependencies
-- **KDE Linux** with Dolphin file manager
+- **KDE Linux** with Dolphin file manager (or **GNOME Files/Nautilus**, **Nemo**, **Caja**, **Thunar**)
 - **yandex-disk** daemon installed and running
-- **kdialog** - KDE dialog utility
+- **kdialog** - KDE dialog utility (KDE) or **notify-send** (GNOME and others)
 - **Clipboard utilities**:
   - **xclip** - For X11 environments
   - **wl-clipboard** - For Wayland environments

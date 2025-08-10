@@ -1,6 +1,6 @@
 # Makefile for Yandex Disk Dolphin Menu - Python version management
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps gnome-install gnome-uninstall gnome-status
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps gnome-install gnome-uninstall gnome-status gnome-ext-install gnome-ext-uninstall gnome-ext-status
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -26,8 +26,11 @@ help:  ## Show this help message
 	@echo "  make gnome-install    Install GNOME/Nemo/Caja scripts (symlinks)"
 	@echo "  make gnome-uninstall  Remove GNOME/Nemo/Caja scripts"
 	@echo "  make gnome-status     Show GNOME scripts status"
+	@echo "  make gnome-ext-install   Install Nautilus Python extension (if python3-nautilus present)"
+	@echo "  make gnome-ext-uninstall Remove Nautilus Python extension"
+	@echo "  make gnome-ext-status   Show Nautilus Python extension status"
 
-install-system-deps:  ## Install system dependencies based on package manager and session type
+cinstall-system-deps:  ## Install system dependencies based on session (X11/Wayland) and desktop (KDE/GNOME)
 	@echo "Installing system dependencies..."
 	@IS_WAYLAND=$$([ -n "$$WAYLAND_DISPLAY" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ] && echo "1" || echo "0"); \
 	if [ "$$IS_WAYLAND" = "1" ]; then \
@@ -43,20 +46,46 @@ install-system-deps:  ## Install system dependencies based on package manager an
 		CLIPBOARD_PKG_PACMAN="xclip"; \
 		CLIPBOARD_NAME="xclip (for X11)"; \
 	fi; \
+	DESKTOP_ENV="$$XDG_CURRENT_DESKTOP$$DESKTOP_SESSION"; \
+	IS_GNOME=$$(echo "$$DESKTOP_ENV" | grep -Eqi "gnome|unity|ubuntu:gnome" && echo 1 || echo 0); \
+	IS_KDE=$$(echo "$$DESKTOP_ENV" | grep -Eqi "kde|plasma" && echo 1 || echo 0); \
 	if command -v apt >/dev/null 2>&1; then \
 		echo "Detected APT package manager (Debian/Ubuntu)"; \
 		sudo apt update; \
-		sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT; \
+		if [ "$$IS_GNOME" = "1" ]; then \
+		  echo "Detected GNOME desktop"; \
+		  sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT libnotify-bin python3-nautilus python3-gi gir1.2-gtk-3.0; \
+		elif [ "$$IS_KDE" = "1" ]; then \
+		  echo "Detected KDE desktop"; \
+		  sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT kdialog; \
+		else \
+		  echo "Unknown desktop; installing common set"; \
+		  sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT libnotify-bin; \
+		fi; \
 	elif command -v dnf >/dev/null 2>&1; then \
 		echo "Detected DNF package manager (Fedora/Red Hat)"; \
-		sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF; \
+		if [ "$$IS_GNOME" = "1" ]; then \
+		  sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF libnotify python3-nautilus python3-gobject gtk3; \
+		elif [ "$$IS_KDE" = "1" ]; then \
+		  sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF kdialog; \
+		else \
+		  sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF libnotify; \
+		fi; \
 	elif command -v pacman >/dev/null 2>&1; then \
 		echo "Detected Pacman package manager (Arch Linux)"; \
-		sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN; \
+		if [ "$$IS_GNOME" = "1" ]; then \
+		  sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN libnotify nautilus-python python-gobject gtk3; \
+		elif [ "$$IS_KDE" = "1" ]; then \
+		  sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN kdialog; \
+		else \
+		  sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN libnotify; \
+		fi; \
 	else \
 		echo "Unknown package manager. Please install manually:"; \
 		echo "- python3-venv (or equivalent)"; \
 		echo "- $$CLIPBOARD_NAME"; \
+		echo "- For GNOME: libnotify + python3-nautilus (if using extension)"; \
+		echo "- For KDE: kdialog"; \
 	fi
 
 $(VENV_DIR):  ## Create virtual environment
@@ -233,6 +262,31 @@ gnome-status:  ## Show GNOME scripts installation status
 	  elif [ -f "$$dest" ]; then echo "$$(basename "$$f"): ✓ Present"; \
 	  else echo "$$(basename "$$f"): ✗ Not installed"; fi; \
 	done
+
+NAUTILUS_EXT_DIR := $(HOME)/.local/share/nautilus-python/extensions
+
+gnome-ext-install: ## Install Nautilus (Files) Python extension (if python3-nautilus is available)
+	@if python3 -c "import gi; from gi.repository import Nautilus" >/dev/null 2>&1; then \
+	  echo "Installing Nautilus Python extension..."; \
+	  mkdir -p "$(NAUTILUS_EXT_DIR)"; \
+	  ln -sf "$(PWD)/gnome/nautilus/ydmenu_nautilus.py" "$(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py"; \
+	  echo "Linked: $(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py"; \
+	  echo "Restarting Nautilus (Files)..."; \
+	  nautilus -q || true; \
+	else \
+	  echo "python3-nautilus not available (gi Nautilus bindings missing). Skipping."; \
+	fi
+
+gnome-ext-uninstall: ## Remove Nautilus Python extension
+	@rm -f "$(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py" && echo "Removed: $(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py" || true
+
+gnome-ext-status: ## Show Nautilus Python extension installation status
+	@echo "=== Nautilus Python Extension ==="
+	@if [ -f "$(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py" ]; then \
+	  echo "Extension: ✓ Present"; \
+	else \
+	  echo "Extension: ✗ Not installed"; \
+	fi
 
 status:  ## Show installation status
 	@echo "=== Installation Status ==="

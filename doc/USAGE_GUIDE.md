@@ -10,6 +10,11 @@ Both versions support **X11** and **Wayland** environments automatically:
 
 The Python version uses `pyclip` which automatically detects and switches between these tools based on your session type.
 
+### GNOME Dependencies
+- `libnotify-bin` (notifications via `notify-send`)
+- Optional: `python3-nautilus`, `python3-gi` (+ GTK GIR) for the Nautilus extension
+- Nemo/Caja users can rely on scripts/actions or install Python extensions where supported
+
 ### Automated Dependency Installation
 
 Install system dependencies for your distribution:
@@ -54,6 +59,9 @@ make configure             # Configure Python version (requires sudo for env var
 make gnome-install   # Install Nautilus Scripts and optional Nemo/Caja actions
 make gnome-status    # Check scripts/actions presence and permissions
 make gnome-uninstall # Remove GNOME scripts/actions
+make gnome-ext-install   # Optional: install Nautilus Python extension (python3-nautilus)
+make gnome-ext-status    # Check extension presence
+make gnome-ext-uninstall # Remove Nautilus extension
 ```
 - Files (Nautilus): Actions appear under the **Scripts** submenu as "YaDisk – ..."
 - Nemo/Caja: Actions appear in the context menu if the file manager is installed

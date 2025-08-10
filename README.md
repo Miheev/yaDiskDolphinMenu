@@ -92,12 +92,20 @@ GNOME support is provided via Scripts-based integration (compatible with Nautilu
 make gnome-install   # installs scripts via symlinks
 make gnome-status    # shows installed scripts/actions
 make gnome-uninstall # removes scripts/actions
+make gnome-ext-install   # optional: install Nautilus python extension (python3-nautilus)
+make gnome-ext-status    # check extension presence
+make gnome-ext-uninstall # remove extension
 ```
 
 - Menu location: Files → Scripts → "YaDisk – ..."
 - Actions mirror Dolphin: Publish (COM/RU), Unpublish, Unpublish All Copies, Save Clipboard, Save & Publish Clipboard (COM/RU), Copy/Move to Stream
 - Nemo/Caja: optional actions installed if file manager is detected
 - Notifications: handled by core app (kdialog preferred; notify-send fallback)
+
+Dependencies for GNOME environments:
+- Clipboard: `wl-clipboard` (Wayland) or `xclip` (X11)
+- Notifications: `libnotify-bin` (provides `notify-send`)
+- Optional extensions: `python3-nautilus`, `python3-gi` (with GTK GIR)
 
 ### Basic Setup
 - Install & configure [yandex-disk](https://yandex.com/support/disk-desktop-linux/) and [yd-tools](https://github.com/slytomcat/yandex-disk-indicator/wiki/Yandex-disk-indicator) as described in corresponding docs
