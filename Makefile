@@ -1,6 +1,9 @@
 # Makefile for Yandex Disk Dolphin Menu - Python version management
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps gnome-install gnome-uninstall gnome-status gnome-ext-install gnome-ext-uninstall gnome-ext-status nemo-ext-install nemo-ext-uninstall nemo-ext-status caja-ext-install caja-ext-uninstall caja-ext-status thunar-install thunar-uninstall thunar-status
+# Include GNOME-family file manager targets
+-include gnome/Makefile.gnome
+
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env install-system-deps desktop-aware-install
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -21,23 +24,7 @@ help:  ## Show this help message
 	@echo ""
 	@echo "Note: Python setup.py only handles Python files (ydmenu.py, ydpublish-python.desktop)"
 	@echo "      Shell setup.sh only handles shell files (ydmenu.sh, ydpublish.desktop)"
-	@echo ""
-	@echo "GNOME Scripts:"
-	@echo "  make gnome-install    Install GNOME/Nemo/Caja scripts (symlinks)"
-	@echo "  make gnome-uninstall  Remove GNOME/Nemo/Caja scripts"
-	@echo "  make gnome-status     Show GNOME scripts status"
-	@echo "  make gnome-ext-install   Install Nautilus Python extension (if python3-nautilus present)"
-	@echo "  make gnome-ext-uninstall Remove Nautilus Python extension"
-	@echo "  make gnome-ext-status   Show Nautilus Python extension status"
-	@echo "  make nemo-ext-install    Install Nemo Python extension (if python3-nemo present)"
-	@echo "  make nemo-ext-uninstall  Remove Nemo Python extension"
-	@echo "  make nemo-ext-status     Show Nemo Python extension status"
-	@echo "  make caja-ext-install    Install Caja Python extension (if python3-caja present)"
-	@echo "  make caja-ext-uninstall  Remove Caja Python extension"
-	@echo "  make caja-ext-status     Show Caja Python extension status"
-	@echo "  make thunar-install     Install Thunar custom actions (merge uca.xml fragment)"
-	@echo "  make thunar-uninstall   Remove Thunar custom actions (from fragment markers)"
-	@echo "  make thunar-status      Show Thunar custom actions status"
+	@$(MAKE) --no-print-directory gnome-help
 
 install-system-deps:  ## Install system dependencies based on session (X11/Wayland) and desktop (KDE/GNOME)
 	@echo "Installing system dependencies..."
@@ -113,11 +100,45 @@ install: install-deps  ## Install Python version dependencies
 	$(PYTHON) setup.py --check-deps
 	@echo "Run 'make configure' or 'python setup.py' to complete Python version installation"
 
-configure:  ## Configure Python version (requires sudo)
+configure:  ## Configure Python version with desktop-aware installation (requires sudo)
 	$(PYTHON) setup.py
+	@$(MAKE) --no-print-directory desktop-aware-install
 
-configure-skip-env:  ## Configure Python version (requires sudo)
+configure-skip-env:  ## Configure Python version with desktop-aware installation (requires sudo)
 	$(PYTHON) setup.py --skip-env
+	@$(MAKE) --no-print-directory desktop-aware-install
+
+desktop-aware-install:  ## Install file manager integration based on detected desktop environment
+	@echo "Detecting desktop environment..."
+	@DESKTOP_ENV="$$XDG_CURRENT_DESKTOP$$DESKTOP_SESSION"; \
+	IS_GNOME=$$(echo "$$DESKTOP_ENV" | grep -Eqi "gnome|unity|ubuntu:gnome" && echo 1 || echo 0); \
+	IS_KDE=$$(echo "$$DESKTOP_ENV" | grep -Eqi "kde|plasma" && echo 1 || echo 0); \
+	if [ "$$IS_KDE" = "1" ]; then \
+	  echo "KDE desktop detected - YaDisk menu already configured for Dolphin"; \
+	elif [ "$$IS_GNOME" = "1" ]; then \
+	  echo "GNOME desktop detected - installing GNOME file manager integration..."; \
+	  $(MAKE) --no-print-directory gnome-install; \
+	  if python3 -c "import gi; from gi.repository import Nautilus" >/dev/null 2>&1; then \
+	    echo "python3-nautilus detected - installing Nautilus extension..."; \
+	    $(MAKE) --no-print-directory gnome-ext-install; \
+	  fi; \
+	  if python3 -c "import gi; from gi.repository import Nemo" >/dev/null 2>&1; then \
+	    echo "python3-nemo detected - installing Nemo extension..."; \
+	    $(MAKE) --no-print-directory nemo-ext-install; \
+	  fi; \
+	  if python3 -c "import gi; from gi.repository import Caja" >/dev/null 2>&1; then \
+	    echo "python3-caja detected - installing Caja extension..."; \
+	    $(MAKE) --no-print-directory caja-ext-install; \
+	  fi; \
+	  if command -v thunar >/dev/null 2>&1; then \
+	    echo "Thunar detected - installing Thunar actions..."; \
+	    $(MAKE) --no-print-directory thunar-install; \
+	  fi; \
+	else \
+	  echo "Unknown desktop environment ($$DESKTOP_ENV) - manual integration required"; \
+	  echo "For KDE: Already configured"; \
+	  echo "For GNOME: Run 'make gnome-install' and optionally 'make gnome-ext-install'"; \
+	fi
 
 test: install-deps  ## Run unit tests
 	$(PYTHON) -m pytest test_*.py -v
@@ -184,202 +205,6 @@ uninstall:  ## Uninstall symlinks (keeps directories)
 	rm -f $(HOME)/.local/share/kio/servicemenus/ydpublish.desktop
 	rm -f $(HOME)/.local/share/kio/servicemenus/ydpublish-python.desktop
 	@echo "Uninstall complete. Original files preserved."
-
-GNOME_SCRIPTS_DIR := $(HOME)/.local/share/nautilus/scripts
-NEMO_ACTIONS_DIR := $(HOME)/.local/share/nemo/actions
-CAJA_ACTIONS_DIR := $(HOME)/.local/share/file-manager/actions
-
-gnome-install:  ## Install GNOME (Nautilus) Scripts and optional Nemo/Caja actions (symlinks)
-	@echo "Installing GNOME scripts..."
-	@mkdir -p "$(GNOME_SCRIPTS_DIR)"
-	@for f in gnome/scripts/*; do \
-	  [ -f "$$f" ] && chmod +x "$$f"; \
-	  if [ -f "$$f" ] && [ ! -L "$(GNOME_SCRIPTS_DIR)/$$(basename "$$f")" ]; then \
-	    ln -sf "$(PWD)/$$f" "$(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
-	    echo "Linked: $(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
-	  fi; \
-	done
-	@# Optional: Nemo actions
-	@if command -v nemo >/dev/null 2>&1; then \
-	  echo "Installing Nemo actions..."; \
-	  mkdir -p "$(NEMO_ACTIONS_DIR)"; \
-	  for f in gnome/nemo/actions/*.nemo_action; do \
-	    [ -f "$$f" ] || continue; \
-	    ln -sf "$(PWD)/$$f" "$(NEMO_ACTIONS_DIR)/$$(basename "$$f")"; \
-	    echo "Linked: $(NEMO_ACTIONS_DIR)/$$(basename "$$f")"; \
-	  done; \
-	else \
-	  echo "Nemo not detected; skipping Nemo actions."; \
-	fi
-	@# Optional: Caja actions
-	@if command -v caja >/dev/null 2>&1; then \
-	  echo "Installing Caja actions..."; \
-	  mkdir -p "$(CAJA_ACTIONS_DIR)"; \
-	  for f in gnome/caja/actions/*.desktop; do \
-	    [ -f "$$f" ] || continue; \
-	    ln -sf "$(PWD)/$$f" "$(CAJA_ACTIONS_DIR)/$$(basename "$$f")"; \
-	    echo "Linked: $(CAJA_ACTIONS_DIR)/$$(basename "$$f")"; \
-	  done; \
-	else \
-	  echo "Caja not detected; skipping Caja actions."; \
-	fi
-	@echo "GNOME scripts installation complete. Restart Files/Nemo/Caja to load changes."
-
-gnome-uninstall:  ## Remove GNOME (Nautilus) Scripts and optional Nemo/Caja actions
-	@echo "Removing GNOME scripts..."
-	@for f in gnome/scripts/*; do \
-	  [ -f "$$f" ] || continue; \
-	  rm -f "$(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
-	  echo "Removed: $(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
-	done
-	@echo "Removing Nemo actions..."
-	@for f in gnome/nemo/actions/*.nemo_action; do \
-	  [ -f "$$f" ] || continue; \
-	  rm -f "$(NEMO_ACTIONS_DIR)/$$(basename "$$f")"; \
-	  echo "Removed: $(NEMO_ACTIONS_DIR)/$$(basename "$$f")"; \
-	done
-	@echo "Removing Caja actions..."
-	@for f in gnome/caja/actions/*.desktop; do \
-	  [ -f "$$f" ] || continue; \
-	  rm -f "$(CAJA_ACTIONS_DIR)/$$(basename "$$f")"; \
-	  echo "Removed: $(CAJA_ACTIONS_DIR)/$$(basename "$$f")"; \
-	done
-	@echo "GNOME scripts uninstall complete."
-
-gnome-status:  ## Show GNOME scripts installation status
-	@echo "=== GNOME Scripts Status ==="
-	@for f in gnome/scripts/*; do \
-	  [ -f "$$f" ] || continue; \
-	  dest="$(GNOME_SCRIPTS_DIR)/$$(basename "$$f")"; \
-	  if [ -L "$$dest" ]; then echo "$$(basename "$$f"): ✓ Linked"; \
-	  elif [ -x "$$dest" ]; then echo "$$(basename "$$f"): ✓ Present (copied)"; \
-	  else echo "$$(basename "$$f"): ✗ Not installed"; fi; \
-	done
-	@echo "=== Nemo Actions ==="
-	@for f in gnome/nemo/actions/*.nemo_action; do \
-	  [ -f "$$f" ] || continue; \
-	  dest="$(NEMO_ACTIONS_DIR)/$$(basename "$$f")"; \
-	  if [ -L "$$dest" ]; then echo "$$(basename "$$f"): ✓ Linked"; \
-	  elif [ -f "$$dest" ]; then echo "$$(basename "$$f"): ✓ Present"; \
-	  else echo "$$(basename "$$f"): ✗ Not installed"; fi; \
-	done
-	@echo "=== Caja Actions ==="
-	@for f in gnome/caja/actions/*.desktop; do \
-	  [ -f "$$f" ] || continue; \
-	  dest="$(CAJA_ACTIONS_DIR)/$$(basename "$$f")"; \
-	  if [ -L "$$dest" ]; then echo "$$(basename "$$f"): ✓ Linked"; \
-	  elif [ -f "$$dest" ]; then echo "$$(basename "$$f"): ✓ Present"; \
-	  else echo "$$(basename "$$f"): ✗ Not installed"; fi; \
-	done
-
-NAUTILUS_EXT_DIR := $(HOME)/.local/share/nautilus-python/extensions
-
-gnome-ext-install: ## Install Nautilus (Files) Python extension (if python3-nautilus is available)
-	@if python3 -c "import gi; from gi.repository import Nautilus" >/dev/null 2>&1; then \
-	  echo "Installing Nautilus Python extension..."; \
-	  mkdir -p "$(NAUTILUS_EXT_DIR)"; \
-	  ln -sf "$(PWD)/gnome/nautilus/ydmenu_nautilus.py" "$(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py"; \
-	  echo "Linked: $(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py"; \
-	  echo "Restarting Nautilus (Files)..."; \
-	  nautilus -q || true; \
-	else \
-	  echo "python3-nautilus not available (gi Nautilus bindings missing). Skipping."; \
-	fi
-
-gnome-ext-uninstall: ## Remove Nautilus Python extension
-	@rm -f "$(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py" && echo "Removed: $(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py" || true
-
-gnome-ext-status: ## Show Nautilus Python extension installation status
-	@echo "=== Nautilus Python Extension ==="
-	@if [ -f "$(NAUTILUS_EXT_DIR)/ydmenu_nautilus.py" ]; then \
-	  echo "Extension: ✓ Present"; \
-	else \
-	  echo "Extension: ✗ Not installed"; \
-	fi
-
-NEMO_EXT_DIR := $(HOME)/.local/share/nemo-python/extensions
-
-nemo-ext-install: ## Install Nemo Python extension (if python3-nemo is available)
-	@if python3 -c "import gi; from gi.repository import Nemo" >/dev/null 2>&1; then \
-	  echo "Installing Nemo Python extension..."; \
-	  mkdir -p "$(NEMO_EXT_DIR)"; \
-	  ln -sf "$(PWD)/gnome/nemo/ydmenu_nemo.py" "$(NEMO_EXT_DIR)/ydmenu_nemo.py"; \
-	  echo "Linked: $(NEMO_EXT_DIR)/ydmenu_nemo.py"; \
-	  echo "Restarting Nemo..."; \
-	  nemo -q || true; \
-	else \
-	  echo "python3-nemo not available (gi Nemo bindings missing). Skipping."; \
-	fi
-
-nemo-ext-uninstall: ## Remove Nemo Python extension
-	@rm -f "$(NEMO_EXT_DIR)/ydmenu_nemo.py" && echo "Removed: $(NEMO_EXT_DIR)/ydmenu_nemo.py" || true
-
-nemo-ext-status: ## Show Nemo Python extension installation status
-	@echo "=== Nemo Python Extension ==="
-	@if [ -f "$(NEMO_EXT_DIR)/ydmenu_nemo.py" ]; then \
-	  echo "Extension: ✓ Present"; \
-	else \
-	  echo "Extension: ✗ Not installed"; \
-	fi
-
-CAJA_EXT_DIR := $(HOME)/.local/share/caja-python/extensions
-
-caja-ext-install: ## Install Caja Python extension (if python3-caja is available)
-	@if python3 -c "import gi; from gi.repository import Caja" >/dev/null 2>&1; then \
-	  echo "Installing Caja Python extension..."; \
-	  mkdir -p "$(CAJA_EXT_DIR)"; \
-	  ln -sf "$(PWD)/gnome/caja/ydmenu_caja.py" "$(CAJA_EXT_DIR)/ydmenu_caja.py"; \
-	  echo "Linked: $(CAJA_EXT_DIR)/ydmenu_caja.py"; \
-	  echo "Restarting Caja..."; \
-	  caja -q || true; \
-	else \
-	  echo "python3-caja not available (gi Caja bindings missing). Skipping."; \
-	fi
-
-caja-ext-uninstall: ## Remove Caja Python extension
-	@rm -f "$(CAJA_EXT_DIR)/ydmenu_caja.py" && echo "Removed: $(CAJA_EXT_DIR)/ydmenu_caja.py" || true
-
-caja-ext-status: ## Show Caja Python extension installation status
-	@echo "=== Caja Python Extension ==="
-	@if [ -f "$(CAJA_EXT_DIR)/ydmenu_caja.py" ]; then \
-	  echo "Extension: ✓ Present"; \
-	else \
-	  echo "Extension: ✗ Not installed"; \
-	fi
-
-THUNAR_UCA := $(HOME)/.config/Thunar/uca.xml
-
-thunar-install: ## Install Thunar custom actions by merging fragment
-	@if command -v thunar >/dev/null 2>&1; then \
-	  echo "Installing Thunar actions..."; \
-	  mkdir -p "$(HOME)/.config/Thunar"; \
-	  if [ -f "$(THUNAR_UCA)" ]; then \
-	    # Remove previous block
-	    awk 'BEGIN{del=0} /<!-- YADISK-START -->/{del=1} !del{print} /<!-- YADISK-END -->/{del=0}' "$(THUNAR_UCA)" > "$(THUNAR_UCA).tmp" && mv "$(THUNAR_UCA).tmp" "$(THUNAR_UCA)"; \
-	  else \
-	    echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<actions>\n</actions>" > "$(THUNAR_UCA)"; \
-	  fi; \
-	  # Insert after <actions>
-	  awk '1;/<actions>/{system("cat thunar/uca_fragment.xml");}' "$(THUNAR_UCA)" > "$(THUNAR_UCA).tmp" && mv "$(THUNAR_UCA).tmp" "$(THUNAR_UCA)"; \
-	  echo "Thunar actions installed. Restart Thunar."; \
-	else \
-	  echo "Thunar not detected; skipping."; \
-	fi
-
-thunar-uninstall: ## Remove YaDisk Thunar actions
-	@if [ -f "$(THUNAR_UCA)" ]; then \
-	  awk 'BEGIN{del=0} /<!-- YADISK-START -->/{del=1} !del{print} /<!-- YADISK-END -->/{del=0}' "$(THUNAR_UCA)" > "$(THUNAR_UCA).tmp" && mv "$(THUNAR_UCA).tmp" "$(THUNAR_UCA)"; \
-	  echo "Thunar actions removed."; \
-	else \
-	  echo "No Thunar uca.xml found."; \
-	fi
-
-thunar-status: ## Show Thunar actions status
-	@if [ -f "$(THUNAR_UCA)" ]; then \
-	  grep -q "YADISK-START" "$(THUNAR_UCA)" && echo "Thunar actions: ✓ Present" || echo "Thunar actions: ✗ Not installed"; \
-	else \
-	  echo "Thunar actions: ✗ Not installed"; \
-	fi
 
 status:  ## Show installation status
 	@echo "=== Installation Status ==="

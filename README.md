@@ -1,152 +1,109 @@
 # Yandex Disk Dolphin Menu
 
-**Documentation:**
-- [Python Version README](doc/README_Python.md)
-- [Desktop Context Limitations](doc/DESKTOP_CONTEXT_LIMITATIONS.md)
-- [Migration Notes](doc/MIGRATION_SUMMARY.md)
-- [Usage Guide](doc/USAGE_GUIDE.md)
+KDE Dolphin file manager integration for Yandex Disk cloud storage sharing with support for multiple Linux desktop environments.
 
-> **Note:** The Python version is the recommended implementation. A lightweight GNOME (Files 48+) integration is provided via Nautilus Scripts, with optional Nemo/Caja actions.
+## 📚 Documentation
+
+- **[Python Version Details](doc/README_Python.md)** - Python implementation features and technical details
+- **[Usage Guide](doc/USAGE_GUIDE.md)** - Installation examples, troubleshooting, and file manager-specific setup
+- **[Additional Documentation](doc/additional/)** - Technical details: [Desktop Context Limitations](doc/additional/DESKTOP_CONTEXT_LIMITATIONS.md), [Migration Summary](doc/additional/MIGRATION_SUMMARY.md), [Session Improvements](doc/additional/SESSION_IMPROVEMENTS.md), [Coverage Summary](doc/additional/COVERAGE_SUMMARY.md)
+
+> **📌 Recommendation:** The Python version is the recommended implementation with enhanced error handling and modern architecture.
 ### Yandex Disk integration for KDE Dolphin sub menu: use yandex cloud directory for sharing clipboard content and files between PC, mobile, people, etc..
 
 Inspired by [yandex disk indicator](https://github.com/slytomcat/yandex-disk-indicator/wiki/Yandex-disk-indicator) context menu options
 
+## 🖥️ File Manager Support Matrix
+
+| File Manager | Desktop | Scripts/Actions | Python Extensions | Menu Location |
+|-------------|---------|-----------------|-------------------|---------------|
+| **Dolphin** | KDE | ✅ Service Menus | ❌ N/A | Right-click context menu |
+| **Nautilus (Files)** | GNOME | ✅ Scripts | ✅ Optional | Scripts → "YaDisk" / Right-click |
+| **Nemo** | Cinnamon | ✅ Actions | ✅ Optional | Right-click context menu |
+| **Caja** | MATE | ✅ Actions | ✅ Optional | Right-click context menu |
+| **Thunar** | XFCE | ✅ Custom Actions | ❌ N/A | Right-click context menu |
+
+> **Installation:** See [Usage Guide](doc/USAGE_GUIDE.md) for file manager-specific setup examples.
+
+## 📸 Screenshots
+
 ### Menu v1.6.4
 ![Menu v1.6.4](https://raw.githubusercontent.com/Miheev/yaDiskDolphinMenu/main/doc/menu-v1.6.4-42.png)
+
 ### Overview
 ![Overview](https://raw.githubusercontent.com/Miheev/yaDiskDolphinMenu/main/doc/main-mix.png)
 
-## Features:
+## ✨ Key Features
 
-Let's assume some directory under yandex cloud selected as **inbox** for **file stream**. It can be used as **destination** **for**: 
-- Publish files
-- Copy & Move files
-- Save & Publish clipboard content (text & images)
-- Screenshots captured via default KDE tool like [spectacle](https://apps.kde.org/ru/spectacle/) can be copied to clipboard and then saved to cloud via context menu
-- Save clipboard content (without publishing)
+### Core Functionality
+- **File Publishing**: Create public links (.com/.ru domains) with one-click sharing
+- **Clipboard Integration**: Save and publish clipboard content (text and images)
+- **File Operations**: Copy/move files to Yandex stream directory
+- **Batch Processing**: Handle multiple files with intelligent error recovery
+- **Auto-renaming**: Automatic conflict resolution with `_number` suffix pattern
 
-**Pros** comparing to standard yd-tools menu items
-- More resilient behavior: doesn't fail silently if __yandex-disk__ service busy or unavailable, **wait 30s for idle status** and shows notifications accordingly
-- Separate menu group
-- **Non-blocking** native **notifications** (kdialog)
-- Show published links in notification as **clicable links**
-- Show **both published links**: for COM domain (EN language) RU domain (RU language)
-- Separate menu options for capturing appropriate link (RU, EN) to clipboard (2 links present in notification anyway)
-- Add a **label** to **filename**, if file created from **clipboard** (datetime + cleaned 30 chars from note)
-- Doesn't fail on overwrite: **rename automatically** instead (__%name%\_%number%.%extension% or .%extensionName%\_%number%__)
-- **Unpublish** file with its **copies** (if copies created with patterns above)
-- **Unpublish file outside** of cloud directories (instead of throwing error, unpublish its copy from the inbox directory)
-- **Multiple item processing**: Select multiple files/directories in Dolphin for batch operations (Python version only)
-- **Enhanced error handling**: Continue processing remaining items if some fail, with detailed error logging
-- **Log output** to parent of yandex disk root directory (__$YA_DISK_ROOT/yaMedia.log__ for bash, __$YA_DISK_ROOT/yaMedia-python.log__ for Python) 
+### Enhanced Reliability
+- **Service Readiness**: Waits for yandex-disk daemon (up to 30s) before operations
+- **Error Handling**: Continues processing remaining items if some fail
+- **Native Notifications**: Desktop-aware notifications (kdialog/notify-send)
+- **Comprehensive Logging**: Operation tracking with detailed error reporting
+- **Rollback Support**: Undo operations when errors occur
 
-**Cons**
-- EN localization supported only
+### Multi-Platform Support
+- **Desktop Environments**: KDE (primary), GNOME, Cinnamon, MATE, XFCE
+- **Session Types**: X11 and Wayland clipboard support
+- **File Managers**: See [support matrix](#🖥️-file-manager-support-matrix) above
 
-**HINT**: Set up and use additional account for file synchronization and 3rd party services to prevent over sync and too broad access rights sharing.  
-Set up shared directory access from primary to friendly account for such purpose.
+> **💡 Pro Tip**: Use a separate Yandex account for file sharing to prevent over-sync and maintain security boundaries.
 
 
-## Requirements
+## 📋 Requirements
 
-### System Dependencies
-- **yandex-disk**: Yandex Disk daemon
-- **KDE/Dolphin**: KDE desktop environment with Dolphin file manager  
-- **Python 3**: Python 3.6 or higher
-- **python3-venv**: Virtual environment support
-- **kdialog**: KDE dialog utility
-- **Clipboard utilities**:
-  - **xclip**: For X11 environments
-  - **wl-clipboard**: For Wayland environments
-- **Icons pack**: From [yd-tools](https://github.com/slytomcat/yandex-disk-indicator/doc/Yandex-disk-indicator) (after installation should be in /usr/share/yd-tools/icons)
+### Essential Dependencies
+- **yandex-disk** daemon (core functionality)
+- **Python 3.8+** with venv support
+- **Clipboard tools**: xclip (X11) or wl-clipboard (Wayland)
+- **Notifications**: kdialog (KDE) or notify-send (GNOME/others)
 
-Since current scripts created on top of yandex disk indicator, there is a good chance that it installs and set up some not listed dependencies.
-I'd rather suggest to install it anyway.
+### Recommended Setup
+- **[yd-tools](https://github.com/slytomcat/yandex-disk-indicator)** - provides icons and additional utilities
+- **File manager**: See [support matrix](#🖥️-file-manager-support-matrix) for compatibility
+
+> **📖 Details**: See [Python Version README](doc/README_Python.md) for complete dependency information and [Usage Guide](doc/USAGE_GUIDE.md) for installation examples.
 
 
-### Tested on
-- distributive: [KDE Neon](https://neon.kde.org/) 5.21 (Ubuntu + KDE)
-- KDE: 5.21.4
-- Linux core version: 5.4.0-72-generic
-- bash: 5.0.17(1)-release (x86_64-pc-linux-gnu)
+## 🚀 Quick Start
 
-
-## Install & Setup
-
-### System Dependencies Installation
-
-Install system dependencies automatically based on your Linux distribution:
+### Automated Installation (Recommended)
 ```bash
-make install-system-deps  # Detects package manager and session type (X11/Wayland)
+# 1. Install system dependencies (detects your distribution and desktop)
+make install-system-deps
+
+# 2. Install and configure Python version with desktop-aware integration
+make install
+make configure  # Automatically detects and configures your file manager
 ```
 
-This will install:
-- Python virtual environment support
-- Appropriate clipboard tools (xclip for X11, wl-clipboard for Wayland)
-
-### GNOME Integration (Files 48+) [Beta]
-
-GNOME support is provided via Scripts-based integration (compatible with Nautilus/Files v48+). This integration is in beta and needs broader testing across distros and versions:
-
+### Manual Installation Options
 ```bash
-make gnome-install   # installs scripts via symlinks
-make gnome-status    # shows installed scripts/actions
-make gnome-uninstall # removes scripts/actions
-make gnome-ext-install   # optional: install Nautilus python extension (python3-nautilus)
-make gnome-ext-status    # check extension presence
-make gnome-ext-uninstall # remove extension
+# Shell version only (lightweight)
+./setup.sh
+
+# Python version only (advanced features)
+make install-system-deps && make install && make configure
+
+# Both versions (maximum compatibility)
+./setup.sh && make install && make configure-skip-env
 ```
 
-- Menu location: Files → Scripts → "YaDisk – ..."
-- Actions mirror Dolphin: Publish (COM/RU), Unpublish, Unpublish All Copies, Save Clipboard, Save & Publish Clipboard (COM/RU), Copy/Move to Stream
-- Nemo/Caja: optional actions installed if file manager is detected
-- Notifications: handled by core app (kdialog preferred; notify-send fallback)
+> **📚 Detailed Examples**: See [Usage Guide](doc/USAGE_GUIDE.md) for file manager-specific installation, troubleshooting, and advanced configuration options.
 
-Dependencies for GNOME environments:
-- Clipboard: `wl-clipboard` (Wayland) or `xclip` (X11)
-- Notifications: `libnotify-bin` (provides `notify-send`)
-- Optional extensions: `python3-nautilus`, `python3-gi` (with GTK GIR)
+### Prerequisites
+1. **Install yandex-disk daemon**: Follow [official guide](https://yandex.com/support/disk-desktop-linux/)
+2. **Install yd-tools** (recommended): Provides icons and utilities
+3. **Configure your stream directory**: Set up where files will be copied/published
 
-### Basic Setup
-- Install & configure [yandex-disk](https://yandex.com/support/disk-desktop-linux/) and [yd-tools](https://github.com/slytomcat/yandex-disk-indicator/wiki/Yandex-disk-indicator) as described in corresponding docs
-
-### Setup via script
-- Download repo to some permanent directory 
-- Set up variables inside ``setup.sh`` script as described there
-- Run ``setup.sh`` script  
-It creates scripts symlinks instead of copies (manual setup example)
-
-### Manual setup
-- Download repo to somewhere
-- Set up environment variables, simple path without whitespaces expected   
-    - $YA_DISK_ROOT path: parent of yandex disk root directory, e.g. __$HOME/Public__ 
-    Set global static var (local in .bash_profile and .bashrc doesn't work for me)  
-``sudo echo "YA_DISK_ROOT=$HOME/Public" >> /etc/environment``
-    - set yandex disk root directory and inbox directory under the root, e.g. __$YA_DISK_ROOT/yaDisk__ and __$YA_DISK_ROOT/yaDisk/fileInbox__ respectively  
-     Thus parameters can be found in ``./ydmenu.sh`` under line 23:  __yaDisk__ and __streamDir__
-- Run commands inside of repo root
-    - make default config backup  
-``mv $HOME/.local/share/kservices5/ServiceMenus/ydpublish.desktop $HOME/.local/share/kservices5/ServiceMenus/ydpublish.desktop.bak``
-    - copy new desktop menu spec  
-``cp ./ydpublish.desktop ~/.local/share/kservices5/ServiceMenus``
-    - copy script to local bin dir
-``cp ./ydmenu.sh ~/bin``
-- Make sure ydpublish.desktop and ydmenu.sh are executable
-
-### Finish setup
-- Logout & login
- - Now __YaDisk__ menu group should be available in Dolphin; in GNOME Files, see Scripts submenu
-- Enjoy!
-- Reconfigure via script or manually if needed
-
-## Technical Details
-
-### Clipboard Compatibility
-The Python version uses **pyclip** for clipboard operations, which automatically switches between:
-- **xclip** on X11 environments
-- **wl-clipboard** on Wayland environments
-
-This provides seamless cross-platform clipboard support without manual configuration.
+> **🔧 Setup Help**: Detailed setup instructions, file manager-specific examples, and troubleshooting are in the [Usage Guide](doc/USAGE_GUIDE.md).
 
 ## License
 
