@@ -3,7 +3,7 @@
 # Include GNOME-family file manager targets
 -include gnome/Makefile.gnome
 
-.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env configure-kde configure-kde-skip-env configure-gnome configure-gnome-skip-env install-system-deps desktop-aware-install
+.PHONY: help install test clean lint format setup-dev run-tests install-deps uninstall coverage coverage-html coverage-browse configure configure-skip-env configure-kde configure-kde-skip-env configure-gnome configure-gnome-skip-env install-system-deps desktop-aware-install _configure-base _configure-gnome-extensions
 
 VENV_DIR = venv
 PYTHON = $(VENV_DIR)/bin/python
@@ -101,44 +101,37 @@ install: install-deps  ## Install Python version dependencies
 	@echo "Run 'make configure' or 'python setup.py' to complete Python version installation"
 
 configure:  ## Configure Python version with desktop-aware installation (requires sudo)
-	$(PYTHON) setup.py
+	@$(MAKE) --no-print-directory _configure-base
 	@$(MAKE) --no-print-directory desktop-aware-install
 
-configure-skip-env:  ## Configure Python version with desktop-aware installation (requires sudo)
-	$(PYTHON) setup.py --skip-env
+configure-skip-env:  ## Configure Python version with desktop-aware installation, skip env setup (requires sudo)
+	@SKIP_ENV=1 $(MAKE) --no-print-directory _configure-base
 	@$(MAKE) --no-print-directory desktop-aware-install
 
 configure-kde:  ## Configure Python version for KDE only (requires sudo)
-	$(PYTHON) setup.py
+	@$(MAKE) --no-print-directory _configure-base
 	@echo "KDE configuration complete. YaDisk menu available in Dolphin."
 
 configure-kde-skip-env:  ## Configure Python version for KDE only, skip env setup (requires sudo)
-	$(PYTHON) setup.py --skip-env
+	@SKIP_ENV=1 $(MAKE) --no-print-directory _configure-base
 	@echo "KDE configuration complete. YaDisk menu available in Dolphin."
 
 configure-gnome:  ## Configure Python version for GNOME only (requires sudo)
-	$(PYTHON) setup.py --skip-kde
-	@$(MAKE) --no-print-directory gnome-install
-	@if python3 -c "import gi; from gi.repository import Nautilus" >/dev/null 2>&1; then \
-	  echo "python3-nautilus detected - installing Nautilus extension..."; \
-	  $(MAKE) --no-print-directory gnome-ext-install; \
-	fi
-	@if python3 -c "import gi; from gi.repository import Nemo" >/dev/null 2>&1; then \
-	  echo "python3-nemo detected - installing Nemo extension..."; \
-	  $(MAKE) --no-print-directory nemo-ext-install; \
-	fi
-	@if python3 -c "import gi; from gi.repository import Caja" >/dev/null 2>&1; then \
-	  echo "python3-caja detected - installing Caja extension..."; \
-	  $(MAKE) --no-print-directory caja-ext-install; \
-	fi
-	@if command -v thunar >/dev/null 2>&1; then \
-	  echo "Thunar detected - installing Thunar actions..."; \
-	  $(MAKE) --no-print-directory thunar-install; \
-	fi
+	@SKIP_KDE=1 $(MAKE) --no-print-directory _configure-base
+	@$(MAKE) --no-print-directory _configure-gnome-extensions
 	@echo "GNOME configuration complete."
 
 configure-gnome-skip-env:  ## Configure Python version for GNOME only, skip env setup (requires sudo)
-	$(PYTHON) setup.py --skip-env --skip-kde
+	@SKIP_ENV=1 SKIP_KDE=1 $(MAKE) --no-print-directory _configure-base
+	@$(MAKE) --no-print-directory _configure-gnome-extensions
+	@echo "GNOME configuration complete."
+
+_configure-base:  ## Internal: Base configuration (reads SKIP_ENV, SKIP_KDE from environment)
+	@SKIP_ENV_FLAG=""; if [ "$$SKIP_ENV" = "1" ]; then SKIP_ENV_FLAG="--skip-env"; fi; \
+	SKIP_KDE_FLAG=""; if [ "$$SKIP_KDE" = "1" ]; then SKIP_KDE_FLAG="--skip-kde"; fi; \
+	$(PYTHON) setup.py $$SKIP_ENV_FLAG $$SKIP_KDE_FLAG
+
+_configure-gnome-extensions:  ## Internal: Install GNOME file manager extensions
 	@$(MAKE) --no-print-directory gnome-install
 	@if python3 -c "import gi; from gi.repository import Nautilus" >/dev/null 2>&1; then \
 	  echo "python3-nautilus detected - installing Nautilus extension..."; \
@@ -156,7 +149,6 @@ configure-gnome-skip-env:  ## Configure Python version for GNOME only, skip env 
 	  echo "Thunar detected - installing Thunar actions..."; \
 	  $(MAKE) --no-print-directory thunar-install; \
 	fi
-	@echo "GNOME configuration complete."
 
 desktop-aware-install:  ## Install file manager integration based on detected desktop environment
 	@echo "Detecting desktop environment..."
