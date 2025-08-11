@@ -32,7 +32,7 @@ A modern Python implementation of the Yandex Disk file manager integration with 
 ### Overview
 - **Desktop Environment**:
   - **KDE** with Dolphin file manager (primary support)
-  - **GNOME/GTK** with Files/Nautilus, Nemo, Caja, or Thunar [Beta]
+  - **GNOME/GTK [Beta]** with Files/Nautilus, Nemo, Caja, or Thunar
 - **yandex-disk** daemon installed and running
 - **Notifications**: **kdialog** (KDE) or **notify-send** (GNOME and others)
 - **Clipboard utilities**:
