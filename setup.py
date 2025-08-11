@@ -58,7 +58,7 @@ class YandexDiskSetup:
     # Optional commands (at least one required from each group)
     OPTIONAL_COMMANDS = {
         'dialog': ['kdialog', 'notify-send'],  # KDE or GNOME notification
-        'clipboard': ['xclip', 'wl-clipboard']  # X11 or Wayland clipboard
+        'clipboard': ['xclip', 'wl-copy', 'wl-paste']  # X11 or Wayland clipboard
     }
     
     # Setup messages
