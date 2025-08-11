@@ -19,10 +19,10 @@ Inspired by [yandex disk indicator](https://github.com/slytomcat/yandex-disk-ind
 | File Manager | Desktop | Scripts/Actions | Python Extensions | Menu Location |
 |-------------|---------|-----------------|-------------------|---------------|
 | **Dolphin** | KDE | ✅ Service Menus | ❌ N/A | Right-click context menu |
-| **Nautilus (Files)** | GNOME | ✅ Scripts | ✅ Optional | Scripts → "YaDisk" / Right-click |
-| **Nemo** | Cinnamon | ✅ Actions | ✅ Optional | Right-click context menu |
-| **Caja** | MATE | ✅ Actions | ✅ Optional | Right-click context menu |
-| **Thunar** | XFCE | ✅ Custom Actions | ❌ N/A | Right-click context menu |
+| **Nautilus (Files) (Beta)** | GNOME | ✅ Scripts | ✅ Optional | Scripts → "YaDisk" / Right-click |
+| **Nemo (Beta)** | Cinnamon | ✅ Actions | ✅ Optional | Right-click context menu |
+| **Caja (Beta)** | MATE | ✅ Actions | ✅ Optional | Right-click context menu |
+| **Thunar (Beta)** | XFCE | ✅ Custom Actions | ❌ N/A | Right-click context menu |
 
 > **Installation:** See [Usage Guide](doc/USAGE_GUIDE.md) for file manager-specific setup examples.
 
