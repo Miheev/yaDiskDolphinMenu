@@ -6,6 +6,8 @@ This guide provides detailed installation examples, file manager-specific setup,
 
 ## 🚀 Quick Command Reference
 
+**Consider GNOME/GTK Beta status, so it may not work as intended**
+
 | Desktop Environment | Recommended Setup Command |
 |---------------------|---------------------------|
 | **Any Desktop (Auto-detect)** | `make install-system-deps && make install && make configure` |
@@ -49,7 +51,7 @@ make install && make configure  # Auto-detects KDE and configures for Dolphin
 
 ---
 
-### GNOME/GTK: Files/Nautilus, Caja (MATE), Nemo (Cinnamon), Thunar (XFCE)
+### GNOME/GTK (Beta): Files/Nautilus, Caja (MATE), Nemo (Cinnamon), Thunar (XFCE)
 
 > **💡 Integration Types**: 
 > - **`make gnome-install`** - Scripts/actions integration (works everywhere, basic functionality)
