@@ -46,38 +46,86 @@ install-system-deps:  ## Install system dependencies based on session (X11/Wayla
 	DESKTOP_ENV="$$XDG_CURRENT_DESKTOP$$DESKTOP_SESSION"; \
 	IS_GNOME=$$(echo "$$DESKTOP_ENV" | grep -Eqi "gnome|unity|ubuntu:gnome" && echo 1 || echo 0); \
 	IS_KDE=$$(echo "$$DESKTOP_ENV" | grep -Eqi "kde|plasma" && echo 1 || echo 0); \
-	if command -v apt >/dev/null 2>&1; then \
-		echo "Detected APT package manager (Debian/Ubuntu)"; \
-		sudo apt update; \
-		if [ "$$IS_GNOME" = "1" ]; then \
-		  echo "Detected GNOME desktop"; \
-		  sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT libnotify-bin python3-nautilus python3-nemo python3-caja python3-gi gir1.2-gtk-3.0; \
-		elif [ "$$IS_KDE" = "1" ]; then \
-		  echo "Detected KDE desktop"; \
-		  sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT kdialog; \
-		else \
-		  echo "Unknown desktop; installing common set"; \
-		  sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT libnotify-bin; \
-		fi; \
-	elif command -v dnf >/dev/null 2>&1; then \
-		echo "Detected DNF package manager (Fedora/Red Hat)"; \
-		if [ "$$IS_GNOME" = "1" ]; then \
-		  sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF libnotify python3-nautilus nemo-python caja-python python3-gobject gtk3; \
-		elif [ "$$IS_KDE" = "1" ]; then \
-		  sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF kdialog; \
-		else \
-		  sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF libnotify; \
-		fi; \
-	elif command -v pacman >/dev/null 2>&1; then \
-		echo "Detected Pacman package manager (Arch Linux)"; \
-		if [ "$$IS_GNOME" = "1" ]; then \
-		  sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN libnotify nautilus-python nemo-python caja-python python-gobject gtk3; \
-		elif [ "$$IS_KDE" = "1" ]; then \
-		  sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN kdialog; \
-		else \
-		  sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN libnotify; \
-		fi; \
-	else \
+    if command -v apt >/dev/null 2>&1; then \
+        echo "Detected APT package manager (Debian/Ubuntu)"; \
+        sudo apt update; \
+        if [ "$$IS_GNOME" = "1" ]; then \
+          echo "Detected GNOME desktop"; \
+          PKGS="python3-venv $$CLIPBOARD_PKG_APT libnotify-bin python3-gi gir1.2-gtk-3.0"; \
+          if command -v nautilus >/dev/null 2>&1; then \
+            PKGS="$$PKGS python3-nautilus"; \
+          else \
+            echo "Nautilus not detected; skipping python3-nautilus"; \
+          fi; \
+          if command -v nemo >/dev/null 2>&1; then \
+            PKGS="$$PKGS python3-nemo"; \
+          else \
+            echo "Nemo not detected; skipping python3-nemo"; \
+          fi; \
+          if command -v caja >/dev/null 2>&1; then \
+            PKGS="$$PKGS python3-caja"; \
+          else \
+            echo "Caja not detected; skipping python3-caja"; \
+          fi; \
+          sudo apt install -y $$PKGS; \
+        elif [ "$$IS_KDE" = "1" ]; then \
+          echo "Detected KDE desktop"; \
+          sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT kdialog; \
+        else \
+          echo "Unknown desktop; installing common set"; \
+          sudo apt install -y python3-venv $$CLIPBOARD_PKG_APT libnotify-bin; \
+        fi; \
+    elif command -v dnf >/dev/null 2>&1; then \
+        echo "Detected DNF package manager (Fedora/Red Hat)"; \
+        if [ "$$IS_GNOME" = "1" ]; then \
+          PKGS="python3-venv $$CLIPBOARD_PKG_DNF libnotify python3-gobject gtk3"; \
+          if command -v nautilus >/dev/null 2>&1; then \
+            PKGS="$$PKGS python3-nautilus"; \
+          else \
+            echo "Nautilus not detected; skipping python3-nautilus"; \
+          fi; \
+          if command -v nemo >/dev/null 2>&1; then \
+            PKGS="$$PKGS nemo-python"; \
+          else \
+            echo "Nemo not detected; skipping nemo-python"; \
+          fi; \
+          if command -v caja >/dev/null 2>&1; then \
+            PKGS="$$PKGS caja-python"; \
+          else \
+            echo "Caja not detected; skipping caja-python"; \
+          fi; \
+          sudo dnf install -y $$PKGS; \
+        elif [ "$$IS_KDE" = "1" ]; then \
+          sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF kdialog; \
+        else \
+          sudo dnf install -y python3-venv $$CLIPBOARD_PKG_DNF libnotify; \
+        fi; \
+    elif command -v pacman >/dev/null 2>&1; then \
+        echo "Detected Pacman package manager (Arch Linux)"; \
+        if [ "$$IS_GNOME" = "1" ]; then \
+          PKGS="python-venv $$CLIPBOARD_PKG_PACMAN libnotify python-gobject gtk3"; \
+          if command -v nautilus >/dev/null 2>&1; then \
+            PKGS="$$PKGS nautilus-python"; \
+          else \
+            echo "Nautilus not detected; skipping nautilus-python"; \
+          fi; \
+          if command -v nemo >/dev/null 2>&1; then \
+            PKGS="$$PKGS nemo-python"; \
+          else \
+            echo "Nemo not detected; skipping nemo-python"; \
+          fi; \
+          if command -v caja >/dev/null 2>&1; then \
+            PKGS="$$PKGS caja-python"; \
+          else \
+            echo "Caja not detected; skipping caja-python"; \
+          fi; \
+          sudo pacman -S --noconfirm $$PKGS; \
+        elif [ "$$IS_KDE" = "1" ]; then \
+          sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN kdialog; \
+        else \
+          sudo pacman -S --noconfirm python-venv $$CLIPBOARD_PKG_PACMAN libnotify; \
+        fi; \
+    else \
 		echo "Unknown package manager. Please install manually:"; \
 		echo "- python3-venv (or equivalent)"; \
 		echo "- $$CLIPBOARD_NAME"; \
