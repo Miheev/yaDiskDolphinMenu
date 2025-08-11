@@ -4,8 +4,9 @@ KDE Dolphin file manager integration for Yandex Disk cloud storage sharing with 
 
 ## 📚 Documentation
 
-- **[Python Version Details](doc/README_Python.md)** - Python implementation features and technical details
 - **[Usage Guide](doc/USAGE_GUIDE.md)** - Installation examples, troubleshooting, and file manager-specific setup
+- **[Python Version Details](doc/README_Python.md)** - Python implementation features and user-facing technical details
+- **[Developer Guide](doc/DEVELOPMENT.md)** - Development workflow, CI/CD, tests, directory map (GNOME specifics)
 - **[Additional Documentation](doc/additional/)** - Technical details: [Desktop Context Limitations](doc/additional/DESKTOP_CONTEXT_LIMITATIONS.md), [Migration Summary](doc/additional/MIGRATION_SUMMARY.md), [Session Improvements](doc/additional/SESSION_IMPROVEMENTS.md), [Coverage Summary](doc/additional/COVERAGE_SUMMARY.md)
 
 > **📌 Recommendation:** The Python version is the recommended implementation with enhanced error handling and modern architecture.

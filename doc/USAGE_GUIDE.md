@@ -2,7 +2,7 @@
 
 This guide provides detailed installation examples, file manager-specific setup, and troubleshooting instructions.
 
-> **📋 Overview**: For project introduction and quick start, see [README](../README.md). For Python technical details, see [Python README](README_Python.md).
+> **📋 Overview**: For project introduction and quick start, see [README](../README.md). For developer workflow and directory map, see [Developer Guide](DEVELOPMENT.md). For Python user-facing technical details, see [Python README](README_Python.md).
 
 ## 🚀 Quick Command Reference
 
