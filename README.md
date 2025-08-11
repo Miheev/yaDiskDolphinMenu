@@ -16,6 +16,8 @@ Inspired by [yandex disk indicator](https://github.com/slytomcat/yandex-disk-ind
 
 ## 🖥️ File Manager Support Matrix
 
+**Consider GNOME/GTK Beta status, so it may not work as intended**
+
 | File Manager | Desktop | Scripts/Actions | Python Extensions | Menu Location |
 |-------------|---------|-----------------|-------------------|---------------|
 | **Dolphin** | KDE | ✅ Service Menus | ❌ N/A | Right-click context menu |
